@@ -1,0 +1,145 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>重庆建筑工程职业学院 · 校园漫游</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%234a90d9'/><rect x='3' y='6' width='4' height='7' fill='%23fff'/><rect x='9' y='3' width='4' height='10' fill='%23fff'/></svg>">
+  <style>
+    :root { color-scheme: dark; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #0d1117; }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #view { display: block; width: 100vw; height: 100vh; }
+
+    .overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px; z-index: 10;
+      background: rgba(8, 12, 18, .82);
+      backdrop-filter: blur(6px);
+      transition: opacity .35s ease;
+    }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+
+    h1 { font-size: 26px; font-weight: 600; letter-spacing: .06em; color: #e8eef5; }
+    .detail { font-size: 13px; color: #8b98a8; letter-spacing: .04em; }
+
+    #loader-track {
+      width: 280px; height: 3px; border-radius: 3px;
+      background: rgba(255,255,255,.12); overflow: hidden;
+    }
+    #loader-bar {
+      height: 100%; width: 0%; border-radius: 3px;
+      background: linear-gradient(90deg, #4a90d9, #7fb2e5);
+      transition: width .25s ease;
+    }
+    #loader-text { font-size: 12px; color: #8b98a8; letter-spacing: .08em; }
+
+    #start { cursor: pointer; }
+    .enter {
+      padding: 11px 30px; border: 1px solid rgba(255,255,255,.22);
+      border-radius: 2px; font-size: 14px; letter-spacing: .12em;
+      color: #e8eef5; transition: background .2s, border-color .2s;
+    }
+    #start:hover .enter { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); }
+
+    .keys {
+      display: flex; gap: 20px; font-size: 12px;
+      color: #6f7d8c; letter-spacing: .05em;
+    }
+    .keys b { color: #a7b4c2; font-weight: 500; }
+
+    #crosshair {
+      position: fixed; left: 50%; top: 50%;
+      width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px;
+      border-radius: 50%; background: rgba(255,255,255,.55);
+      box-shadow: 0 0 3px rgba(0,0,0,.8); z-index: 5;
+    }
+    #crosshair.hidden { display: none; }
+
+    #place {
+      position: fixed; left: 24px; bottom: 22px; z-index: 5;
+      font-size: 15px; letter-spacing: .1em; color: #e8eef5;
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    }
+    #stats {
+      position: fixed; right: 24px; bottom: 22px; z-index: 5;
+      font-size: 11px; letter-spacing: .08em; color: #8b98a8;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+    #place.hidden, #stats.hidden { display: none; }
+
+    /* --- touch controls (mobile only) --- */
+    #touch-ui { display: none; }
+    #touch-ui.visible { display: block; }
+
+    #stick-base {
+      position: fixed; z-index: 6;
+      width: 124px; height: 124px; margin: -62px 0 0 -62px;
+      border-radius: 50%; border: 1.5px solid rgba(255,255,255,.28);
+      background: rgba(255,255,255,.07);
+      opacity: 0; transition: opacity .15s ease;
+      pointer-events: none;
+    }
+    #stick-base.active { opacity: 1; }
+    #stick-knob {
+      position: absolute; left: 50%; top: 50%;
+      width: 52px; height: 52px; margin: -26px 0 0 -26px;
+      border-radius: 50%; background: rgba(255,255,255,.42);
+      box-shadow: 0 2px 10px rgba(0,0,0,.45);
+    }
+
+    #touch-buttons {
+      position: fixed; right: 26px; bottom: 88px; z-index: 7;
+      display: flex; flex-direction: column; gap: 16px;
+    }
+    #touch-buttons button {
+      width: 74px; height: 74px; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,.3);
+      background: rgba(20,28,38,.42);
+      color: #e8eef5; font-size: 17px; letter-spacing: .1em;
+      font-family: inherit; -webkit-tap-highlight-color: transparent;
+      touch-action: none;
+    }
+    #touch-buttons button:active { background: rgba(255,255,255,.22); }
+    #btn-sprint.on { background: rgba(120,180,240,.45); border-color: rgba(160,205,255,.8); }
+
+    /* Stop the browser hijacking drags for scroll, pull-to-refresh and zoom. */
+    body.touch-mode { touch-action: none; overscroll-behavior: none; }
+  </style>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="loader" class="overlay">
+    <h1>重庆建筑工程职业学院 · 校园漫游</h1>
+    <div id="loader-track"><div id="loader-bar"></div></div>
+    <div id="loader-text">载入中</div>
+  </div>
+
+  <div id="start" class="overlay hidden">
+    <h1>重庆建筑工程职业学院 · 校园漫游</h1>
+    <div class="detail"></div>
+    <div class="enter">点击进入</div>
+    <div class="keys">
+      <span><b>WASD</b> 移动</span>
+      <span><b>Shift</b> 疾跑</span>
+      <span><b>空格</b> 跳跃</span>
+      <span><b>鼠标</b> 视角</span>
+      <span><b>M</b> 静音</span>
+      <span><b>Esc</b> 退出</span>
+    </div>
+  </div>
+
+  <div id="crosshair" class="hidden"></div>
+  <div id="place" class="hidden"></div>
+  <div id="stats" class="hidden"></div>
+
+  <script type="module" src="/src/main.js"></script>
+</body>
+</html>

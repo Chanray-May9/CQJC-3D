@@ -1,0 +1,6 @@
+node_modules/
+dist/
+.vite/
+
+# Rendered by `npm run shots` / `npm test`; regenerate rather than track.
+shots/

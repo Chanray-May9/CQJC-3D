@@ -1,0 +1,23 @@
+{
+  "name": "campus3d",
+  "version": "0.1.0",
+  "description": "重庆建筑工程职业学院 3D 校园漫游",
+  "scripts": {
+    "dev": "vite --port 5183 --host 127.0.0.1",
+    "build": "vite build",
+    "preview": "vite preview --port 5183",
+    "textures": "python tools/fetch_textures.py",
+    "test": "node tools/walk-test.mjs",
+    "shots": "node tools/shoot.mjs shots"
+  },
+  "type": "module",
+  "dependencies": {
+    "three": "^0.185.1",
+    "three-mesh-bvh": "^0.9.13"
+  },
+  "devDependencies": {
+    "playwright": "^1.61.1",
+    "vite": "^8.1.5"
+  },
+  "private": true
+}
