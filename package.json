@@ -8,7 +8,9 @@
     "preview": "vite preview --port 5183",
     "textures": "python tools/fetch_textures.py",
     "test": "node tools/walk-test.mjs",
-    "shots": "node tools/shoot.mjs shots"
+    "shots": "node tools/shoot.mjs shots",
+    "deploy": "npm run build && node tools/deploy-pages.mjs",
+    "test:touch": "node tools/touch-test.mjs"
   },
   "type": "module",
   "dependencies": {
@@ -16,6 +18,9 @@
     "three-mesh-bvh": "^0.9.13"
   },
   "devDependencies": {
+    "@capacitor/android": "^8.4.2",
+    "@capacitor/cli": "^8.4.2",
+    "@capacitor/core": "^8.4.2",
     "playwright": "^1.61.1",
     "vite": "^8.1.5"
   },

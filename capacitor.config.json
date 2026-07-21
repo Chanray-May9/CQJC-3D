@@ -1,0 +1,12 @@
+{
+  "appId": "edu.cqjc.campus3d",
+  "appName": "CQJC 3D",
+  "webDir": "dist",
+  "android": {
+    "allowMixedContent": false,
+    "webContentsDebuggingEnabled": false
+  },
+  "server": {
+    "androidScheme": "https"
+  }
+}

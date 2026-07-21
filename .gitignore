@@ -4,3 +4,9 @@ dist/
 
 # Rendered by `npm run shots` / `npm test`; regenerate rather than track.
 shots/
+
+# Local Android toolchain (JDK + SDK), ~2 GB. Downloaded by tools/, not tracked.
+.toolchain/
+
+# Capacitor-generated Android project. Regenerate with `npx cap add android`.
+android/
