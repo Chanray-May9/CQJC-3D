@@ -11,7 +11,9 @@
 ## 运行
 
 ```bash
-npm install
+git clone https://github.com/Chanray-May9/CQJC-3D.git
+cd CQJC-3D
+npm install        # 读取 package.json，装好所有依赖
 npm run dev        # http://127.0.0.1:5183
 ```
 
@@ -47,8 +49,6 @@ cd android && ./gradlew.bat assembleDebug
 ```
 
 产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，应用名 **CQJC 3D**。
-
-调试版签名只用于自测；要给别人装或上架，需要自己生成 keystore 打签名的 release 版。
 
 ## 结构
 
