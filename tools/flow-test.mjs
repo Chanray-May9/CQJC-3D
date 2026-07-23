@@ -43,10 +43,13 @@ await page.click('#match-skip');
 await page.waitForTimeout(1300);   // 匹配完成 → 阵营
 check('匹配后进入阵营选择', (await state()) === 'faction', `state=${await state()}`);
 
-// 选国军(蓝) → 开场演出
+// 选蒋介石(蓝) → 提示并肩作战 → 开场演出
 await page.click('#screen-faction [data-team="blue"]');
 await page.waitForTimeout(300);
-check('选阵营后进入开场演出', (await state()) === 'intro', `state=${await state()}`);
+const prompt = await page.textContent('#faction-prompt');
+check('选阵营后提示并肩作战', /蒋介石.*并肩作战/.test(prompt), prompt);
+await page.waitForTimeout(2000);   // 提示 1.9s 后进开场
+check('提示后进入开场演出', (await state()) === 'intro', `state=${await state()}`);
 
 // 跳过开场 → 对局
 await page.click('#intro-skip');
