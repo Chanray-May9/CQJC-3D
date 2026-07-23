@@ -22,7 +22,7 @@
 
 ## 装到手机上（安卓）
 
-**[蒋介石大战希特勒 v0.3.0 · CQJC-3D-v0.3.0.apk](https://github.com/Chanray-May9/CQJC-3D/releases/download/v0.3.0/CQJC-3D-v0.3.0.apk)**（约 26 MB）
+**[蒋介石大战希特勒 v0.3.0 · Jiang-vs-Hitler-v0.3.0.apk](https://github.com/Chanray-May9/CQJC-3D/releases/download/v0.3.0/Jiang-vs-Hitler-v0.3.0.apk)**（约 44 MB）
 
 手机浏览器点直链下载，系统会拦你、警告你"未知来源"、暗示你这玩意儿可能有毒——**它没毒，只是没签名**，勇敢点，允许安装。装完图标就是那张蓝底大头。全部版本见 [Release](https://github.com/Chanray-May9/CQJC-3D/releases)。
 
@@ -86,7 +86,7 @@ npx cap sync android
 cd android && ./gradlew.bat assembleDebug
 ```
 
-产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，应用名 **CQJC 3D**。已发布的现成安装包见 [Release v1.0](https://github.com/Chanray-May9/CQJC-3D/releases/download/v1.0/CQJC-3D.apk)。
+产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，应用名 **蒋介石大战希特勒**。现成安装包见上方下载区或 [Release](https://github.com/Chanray-May9/CQJC-3D/releases)。图标源在 `assets/`（`npx @capacitor/assets generate --android` 生成全套）。
 
 ## 结构
 
