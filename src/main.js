@@ -56,9 +56,9 @@ async function boot() {
     const info = await campus.load('assets/campus.glb', manager, daylight.environment);
     arena.setCollider(campus.collider);
 
-    // Drop the player onto the plaza rather than the model origin, which sits
-    // underground on this model.
-    player.position.set(0, 8, 70);
+    // 直接把玩家放在广场地面上(不再从天上砸下来)。
+    const gy = arena.groundHeight(0, 70);
+    player.position.set(0, gy + 0.95, 70);
 
     hud.ready(`${info.meshCount} 个网格 · ${info.landmarks} 处地标`, touchMode);
   } catch (err) {
@@ -173,9 +173,13 @@ renderer.setAnimationLoop(() => {
   const dt = timer.getDelta();
 
   if (campus.collider && playing()) {
-    player.update(dt, campus.collider);
-    footsteps.update(player.bobPhaseValue, player.grounded, player.sprinting);
-    hud.setPlace(campus.nearestLandmark(player.position));
+    // 阵亡期间冻结移动(不能再走动)，但仍需推进 arena 以计时复活。
+    const frozen = deployed && !arena.player.alive;
+    if (!frozen) {
+      player.update(dt, campus.collider);
+      footsteps.update(player.bobPhaseValue, player.grounded, player.sprinting);
+      hud.setPlace(campus.nearestLandmark(player.position));
+    }
 
     // 玩家落地后把敌人铺到场上（一次）。
     if (!deployed && player.grounded) {
