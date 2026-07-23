@@ -46,15 +46,17 @@ export class Avatar {
 
     // 躯干（阵营色军装）
     add(new THREE.BoxGeometry(0.5, 0.62, 0.28), cloth, 0, 1.05, 0);
-    // 头（普通头留作背面/底衬）
-    add(new THREE.SphereGeometry(0.16, 16, 12), skin, 0, HEAD_Y, 0);
-    // 大头照广告牌：始终朝向相机，约 2 倍头部半径。蓝=蒋介石 红=希特勒。
-    const faceMat = new THREE.SpriteMaterial({ map: FACE_TEX[team] ?? FACE_TEX.blue, transparent: true, depthWrite: false });
-    const face = new THREE.Sprite(faceMat);
-    face.scale.set(0.64, 0.64, 1);          // 头部半径 0.16 → 约 2 倍
-    face.position.set(0, HEAD_Y + 0.05, 0);
-    this.group.add(face);
-    this._face = face;
+    // 用大头照当头：一个方块头，前(+Z)后(-Z)两面贴领袖照，两侧肤色。
+    // 作为 group 子物体，随身体朝向旋转(faceYaw 转 group.rotation.y)——不再对着相机。
+    // 蓝=蒋介石，红=希特勒。约 2 倍普通头径。
+    const facePhoto = new THREE.MeshBasicMaterial({ map: FACE_TEX[team] ?? FACE_TEX.blue });
+    const headSkin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.6 });
+    const headMats = [headSkin, headSkin, headSkin, headSkin, facePhoto, facePhoto]; // +X,-X,+Y,-Y,+Z,-Z
+    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.54, 0.18), headMats);
+    head.position.set(0, HEAD_Y + 0.04, 0);
+    head.castShadow = true;
+    this.group.add(head);
+    this._face = head;
     // 铰接肢体：支点在髋/肩，肢体盒向下偏移，便于绕支点摆动做走路动画。
     const limb = (geo, mat, px, pivotY, len) => {
       const pivot = new THREE.Group();
@@ -117,10 +119,9 @@ export class Avatar {
     this.dead = dead;
     this.group.traverse((o) => {
       if (!o.isMesh) return;
-      o.material.transparent = dead;
-      o.material.opacity = dead ? 0.55 : 1;
+      const mats = Array.isArray(o.material) ? o.material : [o.material];
+      for (const m of mats) { m.transparent = dead; m.opacity = dead ? 0.55 : 1; }
     });
-    if (this._face) this._face.material.opacity = dead ? 0.55 : 1;
     if (!dead) {
       // 复活：站直归位。
       this._fall = 0;

@@ -160,16 +160,20 @@ renderer.setAnimationLoop(() => {
   flow.update(dt);
 
   if (gameActive()) {
-    const frozen = !arena.player.alive;
-    if (canPlay() && !frozen) {
+    const frozen = !arena.player.alive;   // 阵亡期间彻底冻结移动
+    if (frozen) {
+      player.velocity.set(0, 0, 0);
+      player.keys.clear();
+      player.analog.x = 0; player.analog.y = 0;
+    } else if (canPlay()) {
       player.update(dt, campus.collider);
       footsteps.update(player.bobPhaseValue, player.grounded, player.sprinting);
       hud.setPlace(campus.nearestLandmark(player.position));
     }
 
-    const playerMoving = player.speed > 0.6;
+    const playerMoving = !frozen && player.speed > 0.6;
     arena.update(dt, player, camera, playerMoving);
-    arena.resolvePlayerCollision(player);
+    if (!frozen) arena.resolvePlayerCollision(player);   // 死亡时不被机器人推动
 
     if (canPlay() && (mouseFiring || touch.firing) && arena.player.alive) {
       if (arena.fire(camera)) { footsteps.playShot(arena.weapon.weapon.id); viewModel.kick(); }

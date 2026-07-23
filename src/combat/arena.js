@@ -92,8 +92,9 @@ export class Arena {
     }
     let bi = 0, ri = 0;
     for (const bot of this.bots) {
-      if (bot.c.team === 'blue') this.#spawnInZone(bot, this.blueZone, bi++);
-      else this.#spawnInZone(bot, this.redZone, ri++);
+      // 记住各自的固定出生序号，复活时回到同一固定点。
+      bot._spawnIdx = bot.c.team === 'blue' ? bi++ : ri++;
+      this.#spawnInZone(bot, this.#zoneOf(bot.c.team), bot._spawnIdx);
     }
     this.deployed = true;
   }
@@ -173,7 +174,7 @@ export class Arena {
     if (this.weapon.ammo === 0 && !this.weapon.reloading) this.weapon.reload(now);
 
     // 组装全体存活单位（含玩家），供各 bot 找最近敌人。
-    const actors = [{ id: 'player', team: 'blue', pos: camera.position, alive: this.player.alive }];
+    const actors = [{ id: 'player', team: this.playerTeam, pos: camera.position, alive: this.player.alive }];
     for (const b of this.bots) actors.push({ id: b.c.id, team: b.c.team, pos: b.pos, alive: b.c.alive, bot: b });
 
     const ctx = {
@@ -213,17 +214,17 @@ export class Arena {
       if (!b.c.alive && !b.avatar.dead) b.avatar.setDead(true);
     }
 
-    // 复活：机器人回己方阵营区，玩家回蓝区。
+    // 复活：机器人回己方阵营区的固定出生点(各自 _spawnIdx)。
     for (const b of this.bots) {
       if (b.c.alive && b.avatar.dead) {
         b.avatar.setDead(false);
-        const zone = b.c.team === 'blue' ? this.blueZone : this.redZone;
-        this.#spawnInZone(b, zone, Math.floor(Math.random() * 8));
+        this.#spawnInZone(b, this.#zoneOf(b.c.team), b._spawnIdx ?? 0);
       }
     }
+    // 玩家复活到己方阵营区的固定出生点(不在死亡地点)。
     if (this._playerWasDead && this.player.alive) {
-      const p = this.#spawnPoint(this.#zoneOf(this.playerTeam), Math.floor(Math.random() * 6));
-      player.position.set(p.x, p.y + 1.0, p.z);
+      const p = this.playerSpawn();
+      player.position.set(p.x, p.y + 0.95, p.z);
       player.velocity.set(0, 0, 0);
       this.onPlayerRespawn();
     }
