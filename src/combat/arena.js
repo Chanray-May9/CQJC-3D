@@ -105,16 +105,35 @@ export class Arena {
     const now = this.clock;
 
     this.weapon.update(now);
+    // 打空自动换弹（手动 R 在未打空时也能换）。
+    if (this.weapon.ammo === 0 && !this.weapon.reloading) this.weapon.reload(now);
     this.mode.update(this.state, dt);   // 复活 + 回血
 
-    // 同步敌人渲染：刚被复活的重新立起并归位。
+    // 同步敌人渲染：刚被复活的重新立起并归位；推进倒地动画。
     for (const e of this.enemies) {
       const wasDead = e.avatar.dead;
       if (e.combatant.alive && wasDead) this.#placeEnemy(e);
       else if (!e.combatant.alive && !wasDead) e.avatar.setDead(true);
+      e.avatar.update(dt);
     }
 
     return now;
+  }
+
+  // 把玩家胶囊推出所有存活敌人（XZ 圆形碰撞），防止穿模。在 player.update 后调用。
+  resolvePlayerCollision(player) {
+    const R = 0.34 + 0.42;   // 玩家半径 + 敌人半径
+    for (const e of this.enemies) {
+      if (!e.combatant.alive) continue;
+      const dx = player.position.x - e.avatar.group.position.x;
+      const dz = player.position.z - e.avatar.group.position.z;
+      const d = Math.hypot(dx, dz);
+      if (d > 0 && d < R) {
+        const push = (R - d);
+        player.position.x += (dx / d) * push;
+        player.position.z += (dz / d) * push;
+      }
+    }
   }
 
   // ---- 给 HUD 的只读快照 ----

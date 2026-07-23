@@ -182,6 +182,7 @@ renderer.setAnimationLoop(() => {
 
     if (deployed) {
       arena.update(dt);
+      arena.resolvePlayerCollision(player);
       if (mouseFiring || touch.firing) {
         const fired = arena.fire(camera);
         if (fired) {

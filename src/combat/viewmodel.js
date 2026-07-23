@@ -45,7 +45,36 @@ export class ViewModel {
     this.camera.add(this.group);
 
     this._gun = null;
+    this.#buildArms();
     this.setWeapon('rifle');
+  }
+
+  // 一双持久的第一人称手臂（蓝袖=国军 + 肤色手），跟随枪一起动。
+  // 枪模本身不含手臂，这是网页 FPS 的通行做法：程序化手臂托住枪。
+  #buildArms() {
+    const sleeve = new THREE.MeshStandardMaterial({ color: 0x2f6fb0, roughness: 0.8 });
+    const skin = new THREE.MeshStandardMaterial({ color: 0xd9a67a, roughness: 0.6 });
+    const arms = new THREE.Group();
+
+    // 手放在枪上，前臂朝相机下方斜伸。
+    const makeArm = (px, py, pz, rotX, rotZ) => {
+      const arm = new THREE.Group();
+      const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.038, 0.2, 4, 8), sleeve);
+      fore.position.set(0, -0.12, 0.02);      // 前臂从手部向后下伸出
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.055, 0.08), skin);
+      arm.add(fore, hand);
+      arm.position.set(px, py, pz);
+      arm.rotation.set(rotX, 0, rotZ);
+      return arm;
+    };
+
+    // 右手握把（靠后偏右），左手托前护木（靠前）。
+    arms.add(makeArm(0.03, -0.02, 0.05, 1.15, 0.25));
+    arms.add(makeArm(-0.02, -0.02, -0.13, 1.3, -0.2));
+    arms.traverse((o) => { if (o.isMesh) { o.renderOrder = 998; o.frustumCulled = false; o.castShadow = false; } });
+
+    this._arms = arms;
+    this.group.add(arms);
   }
 
   setWeapon(id) {

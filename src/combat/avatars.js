@@ -55,15 +55,20 @@ export class Avatar {
     this._headOffset = HEAD_Y;
     this._tmp = new THREE.Vector3();
     this.dead = false;
+    this._footY = 0;
+    this._fall = 0;       // 倒地动画进度 0→1
+    this.yaw = 0;
   }
 
   // pos = 脚底世界坐标
   setFootPosition(x, y, z) {
     this.group.position.set(x, y, z);
+    this._footY = y;
   }
 
   faceYaw(yaw) {
-    this.group.rotation.y = yaw;
+    this.yaw = yaw;
+    if (!this.dead) this.group.rotation.y = yaw;
   }
 
   setDead(dead) {
@@ -72,12 +77,25 @@ export class Avatar {
     this.group.traverse((o) => {
       if (!o.isMesh) return;
       o.material.transparent = dead;
-      o.material.opacity = dead ? 0.3 : 1;
+      o.material.opacity = dead ? 0.55 : 1;
     });
-    // 倒地：整体压扁下沉
-    this.group.position.y += dead ? -0.3 : 0.3;
-    this.group.rotation.x = dead ? -Math.PI / 2.2 : 0;
-    this.group.scale.set(1, dead ? 0.85 : 1, 1);
+    if (!dead) {
+      // 复活：站直归位。
+      this._fall = 0;
+      this.group.rotation.set(0, this.yaw, 0);
+      this.group.position.y = this._footY;
+    }
+    // 倒地动画由 update() 逐帧推进，避免瞬间穿地。
+  }
+
+  // 每帧推进倒地动画：绕脚底向后躺平，并抬升半个身体厚度以免陷入地面。
+  update(dt) {
+    if (this.dead && this._fall < 1) {
+      this._fall = Math.min(1, this._fall + dt * 3.2);
+      const e = 1 - Math.pow(1 - this._fall, 3);   // ease-out
+      this.group.rotation.x = -Math.PI / 2 * e;    // 绕脚底后仰躺平
+      this.group.position.y = this._footY + 0.16 * e;  // 抬起，躺平时身体贴地不穿模
+    }
   }
 
   bodyWorldCenter() {

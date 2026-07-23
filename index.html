@@ -116,34 +116,37 @@
     #combat-hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
     #combat-hud.hidden { display: none; }
 
-    /* 顶部比分：蓝(国军) vs 红(共军)，带进度条与半透明背景板提对比度 */
+    /* 顶部比分：蓝(国军) vs 红(共军)。两条进度条同一水平线，从中间向两侧填充。 */
     #scorebar {
       position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
-      display: flex; align-items: center; gap: 12px;
-      padding: 8px 16px; border-radius: 6px;
-      background: rgba(8, 12, 18, .58);
-      box-shadow: 0 2px 12px rgba(0,0,0,.4);
-      backdrop-filter: blur(3px);
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 10px 20px 12px; border-radius: 8px;
+      background: linear-gradient(180deg, rgba(10,14,20,.72), rgba(10,14,20,.5));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      backdrop-filter: blur(4px);
     }
+    #scorebar .row { display: flex; align-items: center; gap: 14px; }
     #scorebar .num {
-      font-size: 30px; font-weight: 800; line-height: 1;
-      min-width: 46px; text-align: center;
-      text-shadow: 0 1px 3px rgba(0,0,0,.95);
+      font-size: 40px; font-weight: 800; line-height: 1;
+      min-width: 56px; text-align: center; font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 4px rgba(0,0,0,.95);
     }
     #scorebar .num.blue { color: #6ab0f5; }
     #scorebar .num.red { color: #f5776a; }
-    #scorebar .bars { display: flex; flex-direction: column; gap: 5px; width: 200px; }
+    /* 两条并排的水平条：蓝条从右向左填(靠中)，红条从左向右填(靠中) */
     #scorebar .bartrack {
-      height: 9px; border-radius: 5px; overflow: hidden;
-      background: rgba(255,255,255,.12);
+      width: 150px; height: 12px; border-radius: 6px; overflow: hidden;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.12);
+      display: flex;
     }
-    #scorebar .barfill { height: 100%; width: 0%; border-radius: 5px; transition: width .25s ease; }
-    #scorebar .barfill.blue { background: linear-gradient(90deg, #2f6fb0, #6ab0f5); }
-    #scorebar .barfill.red  { background: linear-gradient(90deg, #c0392b, #f5776a); float: right; }
-    #scorebar .barwrap.red { display: flex; justify-content: flex-end; }
+    #scorebar .bartrack.blue { justify-content: flex-end; }
+    #scorebar .barfill { height: 100%; width: 0%; transition: width .25s ease; }
+    #scorebar .barfill.blue { background: linear-gradient(90deg, #2f6fb0, #7cc0ff); box-shadow: 0 0 8px rgba(90,160,230,.6); }
+    #scorebar .barfill.red  { background: linear-gradient(90deg, #ff8b7c, #c0392b); box-shadow: 0 0 8px rgba(229,106,90,.6); }
     #scorebar .goal {
-      font-size: 10px; color: #aab6c4; letter-spacing: .1em; text-align: center;
-      text-shadow: 0 1px 3px rgba(0,0,0,.9);
+      font-size: 13px; font-weight: 600; color: #cdd7e2; letter-spacing: .14em;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
     }
 
     /* 左下血量 */
@@ -239,13 +242,13 @@
 
   <div id="combat-hud" class="hidden">
     <div id="scorebar">
-      <span class="num blue" id="score-blue">0</span>
-      <div class="bars">
-        <div class="bartrack"><div class="barfill blue" id="bar-blue"></div></div>
-        <div class="goal">国军 · 击杀 <span id="score-target">50</span> 胜 · 共军</div>
-        <div class="bartrack barwrap red"><div class="barfill red" id="bar-red"></div></div>
+      <div class="row">
+        <span class="num blue" id="score-blue">0</span>
+        <div class="bartrack blue"><div class="barfill blue" id="bar-blue"></div></div>
+        <div class="bartrack red"><div class="barfill red" id="bar-red"></div></div>
+        <span class="num red" id="score-red">0</span>
       </div>
-      <span class="num red" id="score-red">0</span>
+      <div class="goal">国军 &nbsp;击杀 <span id="score-target">50</span> 胜&nbsp; 共军</div>
     </div>
     <div id="health-wrap">
       <div id="health-track"><div id="health-bar"></div></div>
