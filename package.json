@@ -7,7 +7,8 @@
     "build": "vite build",
     "preview": "vite preview --port 5183",
     "textures": "python tools/fetch_textures.py",
-    "test": "node tools/walk-test.mjs",
+    "test": "node --test test/*.test.js",
+    "test:walk": "node tools/walk-test.mjs",
     "shots": "node tools/shoot.mjs shots",
     "deploy": "npm run build && node tools/deploy-pages.mjs",
     "test:touch": "node tools/touch-test.mjs"
