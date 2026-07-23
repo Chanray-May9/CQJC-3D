@@ -49,7 +49,7 @@ const sim = await page.evaluate(() => {
 
   // 隔离测试开火链路：把 0 号机器人放到相机正前方并冻结(不跑 AI 移动)，
   // 手动步进 arena.clock 越过射速冷却，只验证 开火→命中→击杀→记分。
-  const bot = arena.bots[0];
+  const bot = arena.bots.find((b) => b.c.team === 'red');
   bot.avatar.setFootPosition(0, 0, -10);
   camera.position.set(0, 1.6, 0);
   camera.lookAt(bot.avatar.bodyWorldCenter());

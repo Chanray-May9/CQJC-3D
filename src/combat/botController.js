@@ -1,28 +1,28 @@
 import * as THREE from 'three';
+import { Vehicle, ArriveBehavior, WanderBehavior, SeparationBehavior } from 'yuka';
 import { BotBrain, hitChance } from '../game/botBrain.js';
 import { WeaponRuntime } from '../game/weaponRuntime.js';
-import { WEAPONS, computeDamage } from '../game/weapons.js';
+import { WEAPONS } from '../game/weapons.js';
 
 /**
- * 机器人集成层：用 BotBrain 的决策驱动一个 Avatar 在场景里移动、朝向、对玩家射击。
- *
- * 借鉴网页 FPS 常用做法：
- *  - 视线(LOS)用一条 BVH 射线判断是否被墙挡；为省性能每 ~0.12s 才重算一次(分帧)。
- *  - 移动在 XZ 平面按固定地面高度进行(广场大致平坦)，避开墙体、与队友分离，
- *    不做逐帧胶囊物理——16 人手机也扛得住。
- *  - 开火按命中概率掷骰，命中才结算武器伤害；配合反应延迟，做到"比真人稍强但不秒杀"。
+ * 机器人集成层。移动用 Yuka(three.js 专用 Game AI 库)的转向行为驱动，让机器人在
+ * 地图上真实机动，不再原地摇摆：
+ *   - 无敌人   → WanderBehavior 漫游
+ *   - 有敌无视线 → ArriveBehavior 直插敌人(跨地图接敌)
+ *   - 有视线交战 → ArriveBehavior 环绕走位(保持偏好距离 + 侧向 strafe)
+ *   - 血少撤退  → ArriveBehavior 逃离
+ *   - 始终叠加 SeparationBehavior 队友分离
+ * 开火/撤退决策仍用已测试的 BotBrain + 命中概率模型。
  */
 
-const SPEED = { patrol: 2.4, engage: 3.2, retreat: 3.6 };
-const PREFERRED = 16;       // 交战偏好距离(米)
-const SEPARATION = 1.5;     // 队友最小间距
-const LOS_INTERVAL = 0.12;  // 视线重算间隔(秒)
-const EYE = 1.5;
-// 机器人开火节奏：不按武器最高射速狂扫，而是有瞄准间隔——避免秒杀玩家。
+const MAX_SPEED = 5.2;
+const PREFERRED = 16;
+const LOS_INTERVAL = 0.12;
 const BOT_SHOT_INTERVAL = 0.55;
+const EYE = 1.5;
 
 export class BotController {
-  constructor(combatant, avatar, { weaponId = 'rifle', difficulty = 1 } = {}) {
+  constructor(combatant, avatar, { weaponId = 'rifle', difficulty = 0.7, entityManager }) {
     this.c = combatant;
     this.avatar = avatar;
     this.brain = new BotBrain();
@@ -31,80 +31,131 @@ export class BotController {
 
     this.pos = new THREE.Vector3();
     this.spawn = new THREE.Vector3();
-    this.waypoint = new THREE.Vector3();
     this.groundY = 0;
 
-    this._strafeDir = Math.random() < 0.5 ? 1 : -1;
-    this._strafeT = 1 + Math.random() * 1.5;
+    // Yuka 载具 + 转向行为
+    this.vehicle = new Vehicle();
+    this.vehicle.maxSpeed = MAX_SPEED;
+    this.vehicle.updateNeighborhood = true;
+    this.vehicle.neighborhoodRadius = 4;
+    this.vehicle.smoothingActive = true;
+    this.arrive = new ArriveBehavior(this.vehicle.position.clone(), 3, 1.5);
+    this.wander = new WanderBehavior();
+    this.wander.radius = 3; this.wander.distance = 8; this.wander.jitter = 12;
+    this.separation = new SeparationBehavior();
+    this.vehicle.steering.add(this.arrive);
+    this.vehicle.steering.add(this.wander);
+    this.vehicle.steering.add(this.separation);
+    entityManager.add(this.vehicle);
+
+    this._strafePhase = Math.random() * Math.PI * 2;
     this._losTimer = Math.random() * LOS_INTERVAL;
     this._hasLOS = false;
-    this._dist = 999;
-    this._mayShoot = true;      // 由 arena 的 aggro 上限每帧设定
+    this._mayShoot = true;
     this._lastShotAt = -99;
 
+    this._enemyPos = new THREE.Vector3();
+    this._enemyDist = 999;
+    this._enemyAlive = false;
+    this._enemyId = null;
+    this._prev = new THREE.Vector3();
     this._eye = new THREE.Vector3();
-    this._to = new THREE.Vector3();
     this._ray = new THREE.Ray();
-    this._dir = new THREE.Vector3();
-    this._sep = new THREE.Vector3();
+    this._tmp = new THREE.Vector3();
+    this._perp = new THREE.Vector3();
+    this._out = { state: 'patrol', wantShoot: false };
   }
 
   place(x, y, z) {
     this.pos.set(x, y, z);
     this.spawn.set(x, y, z);
     this.groundY = y;
+    this.vehicle.position.set(x, y, z);
+    this.vehicle.velocity.set(0, 0, 0);
     this.avatar.setFootPosition(x, y, z);
-    this.#newWaypoint();
   }
 
-  respawn() {
-    this.c.respawn();
-    this.avatar.setDead(false);
-    this.place(this.spawn.x, this.spawn.y, this.spawn.z);
+  setEnemy(pos, dist, alive, id) {
+    if (pos) this._enemyPos.copy(pos);
+    this._enemyDist = dist; this._enemyAlive = alive; this._enemyId = id;
   }
 
-  #newWaypoint() {
-    const a = Math.random() * Math.PI * 2;
-    const r = 6 + Math.random() * 12;
-    this.waypoint.set(this.spawn.x + Math.cos(a) * r, this.groundY, this.spawn.z + Math.sin(a) * r);
-  }
-
-  // ctx: { clock, dt, playerPos, playerCombatant, playerMoving, collider, bots, onPlayerHit }
-  update(dt, ctx) {
-    this.weapon.update(ctx.clock);
-    if (!this.c.alive) { this.avatar.update(dt); return; }
+  // 阶段一：决策 + 设定转向目标（在 entityManager.update 之前）。
+  steer(dt, ctx) {
+    this._prev.copy(this.vehicle.position);
+    const dead = !this.c.alive;
+    this.arrive.active = false; this.wander.active = false; this.separation.active = !dead;
+    if (dead) { this.vehicle.velocity.set(0, 0, 0); return; }
 
     this._eye.set(this.pos.x, this.groundY + EYE, this.pos.z);
-    this._to.subVectors(ctx.playerPos, this._eye);
-    this._dist = this._to.length();
-
-    // 分帧重算视线
     this._losTimer -= dt;
     if (this._losTimer <= 0) {
       this._losTimer = LOS_INTERVAL;
-      this._hasLOS = ctx.playerCombatant.alive && this.#lineOfSight(ctx.collider);
+      this._hasLOS = this._enemyAlive && this.#lineOfSight(ctx.collider);
     }
 
     const out = this.brain.think({
-      dt, now: ctx.clock, distance: this._dist,
-      hasLOS: this._hasLOS, playerAlive: ctx.playerCombatant.alive, health: this.c.health,
+      dt, now: ctx.clock, distance: this._enemyDist,
+      hasLOS: this._hasLOS, playerAlive: this._enemyAlive, health: this.c.health,
     });
+    this._out = out;
 
-    this.#move(dt, out.moveMode, ctx);
+    const t = this._tmp;
+    if (!this._enemyAlive) {
+      this.wander.active = true;                       // 无敌人：漫游
+    } else if (out.state === 'retreat') {
+      t.subVectors(this.pos, this._enemyPos).setY(0).normalize().multiplyScalar(24).add(this.pos);
+      this.arrive.active = true; this.#setTarget(t);
+    } else if (this._hasLOS) {
+      // 环绕走位：保持偏好距离 + 侧向 strafe
+      t.subVectors(this.pos, this._enemyPos).setY(0);
+      const dn = t.length() || 1; t.divideScalar(dn);
+      const perp = this._perp.set(-t.z, 0, t.x);
+      const strafe = Math.sin(ctx.clock * 1.1 + this._strafePhase) * 7;
+      t.multiplyScalar(PREFERRED).add(this._enemyPos).addScaledVector(perp, strafe);
+      this.arrive.active = true; this.#setTarget(t);
+    } else {
+      this.arrive.active = true; this.#setTarget(this._enemyPos);   // 有敌无视线：直插接敌
+    }
+  }
 
-    const face = (out.state === 'engage' || out.state === 'retreat') ? ctx.playerPos : this.waypoint;
-    this.avatar.faceYaw(Math.atan2(face.x - this.pos.x, face.z - this.pos.z));
+  #setTarget(v) { this.arrive.target.set(v.x, this.groundY, v.z); }
+
+  // 阶段二：落地约束 + 同步 + 开火（在 entityManager.update 之后）。
+  postStep(dt, ctx) {
+    if (!this.c.alive) { this.avatar.update(dt); return; }
+
+    // 墙体阻挡：若这步穿墙则退回上一位置。
+    if (this.#blocked(ctx.collider)) {
+      this.vehicle.position.copy(this._prev);
+      this.vehicle.velocity.multiplyScalar(0.2);
+    }
+    this.vehicle.position.y = this.groundY;
+    this.vehicle.velocity.y = 0;
+    this.pos.set(this.vehicle.position.x, this.groundY, this.vehicle.position.z);
+
+    // 朝向：交战面向敌人，否则面向移动方向。
+    let yaw;
+    if (this._enemyAlive && (this._out.state === 'engage' || this._out.state === 'retreat')) {
+      yaw = Math.atan2(this._enemyPos.x - this.pos.x, this._enemyPos.z - this.pos.z);
+    } else {
+      const v = this.vehicle.velocity;
+      yaw = (v.x * v.x + v.z * v.z > 0.01) ? Math.atan2(v.x, v.z) : this.avatar.yaw;
+    }
+    this.avatar.faceYaw(yaw);
     this.avatar.setFootPosition(this.pos.x, this.groundY, this.pos.z);
 
+    // 开火
+    this.weapon.update(ctx.clock);
     const cadenceOk = (ctx.clock - this._lastShotAt) >= BOT_SHOT_INTERVAL;
-    if (out.wantShoot && this._mayShoot && cadenceOk && this.weapon.tryFire(ctx.clock)) {
+    const aggroOk = this._enemyId === 'player' ? this._mayShoot : true;  // 上限只约束打玩家
+    if (this._out.wantShoot && aggroOk && cadenceOk && this.weapon.tryFire(ctx.clock)) {
       this._lastShotAt = ctx.clock;
-      const p = hitChance({ distance: this._dist, playerMoving: ctx.playerMoving, difficulty: this.difficulty });
+      const p = hitChance({ distance: this._enemyDist, playerMoving: ctx.isMoving(this._enemyId), difficulty: this.difficulty });
       if (Math.random() < p) {
         const isHead = Math.random() < 0.1;
-        const dmg = computeDamage({ weapon: this.weapon.weapon, distance: this._dist, isHeadshot: isHead });
-        const res = ctx.playerCombatant.applyDamage(dmg, this.c.id);
-        ctx.onPlayerHit?.({ dmg, attackerId: this.c.id, attackerTeam: this.c.team, died: res.died });
+        const dmg = this.weapon.weapon.damage * (isHead ? this.weapon.weapon.headshotMult : 1);
+        ctx.dealDamage(this._enemyId, dmg, this.c.id);
       }
     }
     if (this.weapon.ammo === 0 && !this.weapon.reloading) this.weapon.reload(ctx.clock);
@@ -113,59 +164,21 @@ export class BotController {
   }
 
   #lineOfSight(collider) {
-    if (this._dist > this.brain.cfg.engageRange + 5) return false;
-    this._ray.origin.copy(this._eye);
-    this._ray.direction.copy(this._to).normalize();
+    if (this._enemyDist > this.brain.cfg.engageRange + 5) return false;
+    this._ray.origin.set(this.pos.x, this.groundY + EYE, this.pos.z);
+    this._tmp.set(this._enemyPos.x - this._ray.origin.x, (this._enemyPos.y + 1) - this._ray.origin.y, this._enemyPos.z - this._ray.origin.z);
+    const d = this._tmp.length();
+    this._ray.direction.copy(this._tmp).normalize();
     const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
-    return !hit || hit.distance >= this._dist - 0.8;   // 墙比玩家近才算被挡
+    return !hit || hit.distance >= d - 0.8;
   }
 
-  #move(dt, mode, ctx) {
-    const dir = this._dir.set(0, 0, 0);
-    const speed = SPEED[mode] ?? SPEED.patrol;
-
-    if (mode === 'patrol') {
-      dir.set(this.waypoint.x - this.pos.x, 0, this.waypoint.z - this.pos.z);
-      if (dir.length() < 1.2) this.#newWaypoint();
-    } else if (mode === 'engage') {
-      this._to.set(ctx.playerPos.x - this.pos.x, 0, ctx.playerPos.z - this.pos.z);
-      const dn = this._to.length() || 1;
-      this._to.divideScalar(dn);
-      const radial = dn > PREFERRED + 2 ? 1 : (dn < PREFERRED - 2 ? -1 : 0);
-      const side = new THREE.Vector3(-this._to.z, 0, this._to.x).multiplyScalar(this._strafeDir);
-      dir.addScaledVector(this._to, radial).addScaledVector(side, 0.7);
-      this._strafeT -= dt;
-      if (this._strafeT <= 0) { this._strafeDir *= -1; this._strafeT = 1 + Math.random() * 1.5; }
-    } else { // retreat
-      dir.set(this.pos.x - ctx.playerPos.x, 0, this.pos.z - ctx.playerPos.z);
-    }
-
-    if (dir.lengthSq() === 0) { this.pos.y = this.groundY; return; }
-    dir.normalize();
-
-    // 队友分离
-    this._sep.set(0, 0, 0);
-    for (const b of ctx.bots) {
-      if (b === this || !b.c.alive) continue;
-      const dx = this.pos.x - b.pos.x, dz = this.pos.z - b.pos.z;
-      const d = Math.hypot(dx, dz);
-      if (d > 0 && d < SEPARATION) { this._sep.x += dx / d * (SEPARATION - d); this._sep.z += dz / d * (SEPARATION - d); }
-    }
-    dir.add(this._sep);
-    if (dir.lengthSq() > 0) dir.normalize();
-
-    const nx = this.pos.x + dir.x * speed * dt;
-    const nz = this.pos.z + dir.z * speed * dt;
-    if (!this.#wallAhead(ctx.collider, nx, nz)) { this.pos.x = nx; this.pos.z = nz; }
-    else if (mode === 'patrol') this.#newWaypoint();
-    this.pos.y = this.groundY;
-  }
-
-  #wallAhead(collider, nx, nz) {
-    this._ray.origin.set(this.pos.x, this.groundY + 1.0, this.pos.z);
-    const dx = nx - this.pos.x, dz = nz - this.pos.z;
+  #blocked(collider) {
+    const dx = this.vehicle.position.x - this._prev.x;
+    const dz = this.vehicle.position.z - this._prev.z;
     const len = Math.hypot(dx, dz);
-    if (len < 1e-5) return false;
+    if (len < 1e-4) return false;
+    this._ray.origin.set(this._prev.x, this.groundY + 1.0, this._prev.z);
     this._ray.direction.set(dx / len, 0, dz / len);
     const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
     return !!hit && hit.distance < len + 0.5;
