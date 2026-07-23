@@ -44,6 +44,7 @@ const arena = new Arena(scene, {
   onPlayerRespawn: () => hud.clearDeath(),
 });
 let deployed = false;
+let bannerShown = false;
 
 // 相机需在场景图里，其子物体(枪模)才会渲染。
 scene.add(camera);
@@ -193,7 +194,12 @@ renderer.setAnimationLoop(() => {
           viewModel.kick();
         }
       }
-      hud.setCombat(arena.snapshot());
+      const snap = arena.snapshot();
+      hud.setCombat(snap);
+      if (snap.winner && !bannerShown) {
+        hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
+        bannerShown = true;
+      }
     }
   }
 

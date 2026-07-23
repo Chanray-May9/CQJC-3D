@@ -1,7 +1,7 @@
 /**
- * 人机 AI 冒烟测试（子计划3）。
- * 验证：机器人会朝玩家靠近；会对玩家造成伤害但不瞬秒(1s 内不致死)；玩家能被打死；
- * 死亡后能复活；16 实体下帧率达标。
+ * 8v8 人机 AI 冒烟测试（子计划3.5）。
+ * 验证：两队在地图两端分开出生；机器人会在地图上移动(不只原地摇)；我方(蓝)AI 也会
+ * 击杀红队(双方都得分)；玩家不被瞬秒；玩家能被打死并在蓝区复活；帧率达标。
  */
 import { chromium } from 'playwright';
 import { mkdtempSync } from 'node:fs';
@@ -31,44 +31,50 @@ const sim = await page.evaluate(() => {
   const a = window.__arena, pl = window.__player, cam = window.__camera, THREE = window.THREE;
   const col = window.__campus.collider;
   a.setCollider(col);
-  // 玩家站在广场开阔处
   pl.position.set(0, 3, 70); pl.velocity.set(0, 0, 0);
   for (let i = 0; i < 120; i++) pl.update(1 / 60, col);
   a.deploy(pl.position.clone());
 
+  // 出生分区：蓝队平均 z 应明显大于红队平均 z。
+  const avgZ = (t) => { const g = a.bots.filter(b => b.c.team === t); return g.reduce((s, b) => s + b.pos.z, 0) / g.length; };
+  const blueZ0 = avgZ('blue'), redZ0 = avgZ('red');
+
+  const startPos = a.bots.map(b => b.pos.clone());
   const eye = () => cam.position.set(pl.position.x, pl.position.y + 0.78, pl.position.z);
-  const minBotDist = () => Math.min(...a.bots.map(b => Math.hypot(b.pos.x - pl.position.x, b.pos.z - pl.position.z)));
 
-  eye(); cam.updateMatrixWorld(true);
-  const startMinDist = minBotDist();
-
-  let healthAt1s = 100, everDamaged = false, died = false, respawned = false;
-  let wasDead = false;
-  for (let f = 0; f < 900; f++) {   // 15s @60fps
-    pl.update(1 / 60, col);
-    eye(); cam.updateMatrixWorld(true);
+  // 玩家面向 -Z 并向前推进(走进战场)，以验证会被红队打死。
+  pl.yaw = 0; pl.pitch = 0; pl.analog = { x: 0, y: 1 };
+  let healthAt1s = 100, everDamaged = false, died = false, respawned = false, wasDead = false;
+  for (let f = 0; f < 1500; f++) {   // 25s
+    pl.update(1 / 60, col); eye(); cam.updateMatrixWorld(true);
     a.update(1 / 60, pl, cam, false);
     if (a.player.health < 100) everDamaged = true;
     if (f === 60) healthAt1s = a.player.health;
     if (!a.player.alive) { died = true; wasDead = true; }
     if (wasDead && a.player.alive) respawned = true;
   }
-  const endMinDist = minBotDist();
+  // 移动量：机器人平均位移
+  const moved = a.bots.reduce((s, b, i) => s + b.pos.distanceTo(startPos[i]), 0) / a.bots.length;
+
   return {
-    startMinDist: +startMinDist.toFixed(1), endMinDist: +endMinDist.toFixed(1),
+    blueZ0: +blueZ0.toFixed(0), redZ0: +redZ0.toFixed(0),
+    avgMoved: +moved.toFixed(1),
+    blueScore: a.state.score('blue'), redScore: a.state.score('red'),
     healthAt1s: Math.round(healthAt1s), everDamaged, died, respawned,
     fps: window.__debugHealth().fps,
   };
 });
 
-check('机器人进入并保持交战距离', sim.endMinDist < 22,
-  `最近机器人保持在 ${sim.endMinDist}m(偏好~16m 走位)`);
-check('机器人能对玩家造成伤害', sim.everDamaged, `曾扣血=${sim.everDamaged}`);
-check('不瞬秒：1 秒时玩家仍存活', sim.healthAt1s > 0, `1s 血量=${sim.healthAt1s}`);
+check('两队在地图两端分开出生', sim.blueZ0 - sim.redZ0 > 60,
+  `蓝队 z≈${sim.blueZ0} vs 红队 z≈${sim.redZ0}`);
+check('机器人在地图上真实移动(非原地摇)', sim.avgMoved > 8,
+  `平均位移 ${sim.avgMoved}m`);
+check('双方 AI 都能击杀得分', sim.blueScore > 0 && sim.redScore > 0,
+  `蓝 ${sim.blueScore} · 红 ${sim.redScore}`);
+check('玩家不被瞬秒(1s 存活)', sim.healthAt1s > 0, `1s 血量=${sim.healthAt1s}`);
 check('玩家可被打死并复活', sim.died && sim.respawned, `died=${sim.died} respawned=${sim.respawned}`);
 
-const health = await page.evaluate(() => window.__debugHealth());
-console.log(`\nfps=${health.fps} tris=${health.triangles} draws=${health.drawCalls}`);
+console.log(`\nfps=${sim.fps}`);
 if (errors.length) { console.log(`\n${errors.length} console error(s):`); errors.slice(0, 8).forEach(e => console.log('  -', e)); }
 
 await ctx.close();
