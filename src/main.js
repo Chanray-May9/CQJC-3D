@@ -181,7 +181,7 @@ renderer.setAnimationLoop(() => {
       bannerShown = true;
       hud.exitPlay();
       if (!touchMode && player.locked) document.exitPointerLock?.();
-      flow.showResult(snap.winner === arena.playerTeam, snap.blue, snap.red);
+      flow.showResult(snap.winner, arena.playerTeam, snap.blue, snap.red);
     }
 
     // 开镜。

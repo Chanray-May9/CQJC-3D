@@ -47,11 +47,14 @@ export class Flow {
     else if (this.state === 'match') this.#tickMatch(dt);
   }
 
-  showResult(playerWon, blue, red) {
+  // winnerTeam: 'blue'(国军) | 'red'(共军)；playerTeam: 玩家所在阵营
+  showResult(winnerTeam, playerTeam, blue, red) {
     this.state = 'result';
-    this.$('result-title').textContent = playerWon ? '胜利' : '战败';
-    this.$('result-title').style.color = playerWon ? '#6ab0f5' : '#f5776a';
-    this.$('result-score').textContent = `国军 ${blue} · 共军 ${red}`;
+    const won = winnerTeam === playerTeam;
+    this.$('result-title').textContent = winnerTeam === 'blue' ? '国军胜利' : '共军胜利';
+    this.$('result-title').style.color = winnerTeam === 'blue' ? '#6ab0f5' : '#f5776a';
+    this.$('result-score').textContent = `国军 ${blue} · 共军 ${red} — 你所在阵营${won ? '获胜！' : '落败'}`;
+    this.$('result-score').style.color = won ? '#cdd7e2' : '#9fb0c2';
     this.#show('result');
   }
 
