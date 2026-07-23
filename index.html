@@ -111,6 +111,81 @@
 
     /* Stop the browser hijacking drags for scroll, pull-to-refresh and zoom. */
     body.touch-mode { touch-action: none; overscroll-behavior: none; }
+
+    /* --- 战斗 HUD --- */
+    #combat-hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+    #combat-hud.hidden { display: none; }
+
+    /* 顶部比分：蓝(国军) vs 红(共军) */
+    #scorebar {
+      position: absolute; left: 50%; top: 16px; transform: translateX(-50%);
+      display: flex; align-items: center; gap: 14px;
+      font-size: 20px; font-weight: 700; letter-spacing: .05em;
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    }
+    #scorebar .blue { color: #5aa0e6; }
+    #scorebar .red { color: #e56a5a; }
+    #scorebar .sep { font-size: 13px; color: #8b98a8; font-weight: 400; }
+
+    /* 左下血量 */
+    #health-wrap {
+      position: absolute; left: 24px; bottom: 54px; width: 190px;
+    }
+    #health-track {
+      height: 12px; border-radius: 2px; background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.18); overflow: hidden;
+    }
+    #health-bar {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bd48e);
+      transition: width .12s linear, background .2s;
+    }
+    #health-num {
+      font-size: 12px; color: #cdd7e2; letter-spacing: .08em; margin-top: 4px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+
+    /* 右下弹药 */
+    #ammo {
+      position: absolute; right: 26px; bottom: 50px; text-align: right;
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    }
+    #ammo .count { font-size: 30px; font-weight: 700; color: #e8eef5; }
+    #ammo .count.reloading { color: #e5b45a; }
+    #ammo .name { font-size: 12px; color: #8b98a8; letter-spacing: .1em; }
+
+    /* 击杀提示 */
+    #killfeed {
+      position: absolute; right: 24px; top: 58px;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    }
+    #killfeed .item {
+      font-size: 13px; color: #e8eef5; letter-spacing: .04em;
+      background: rgba(12,18,26,.55); padding: 3px 9px; border-radius: 2px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9); animation: fadeout 3s forwards;
+    }
+    #killfeed .item.head { color: #e5b45a; }
+    @keyframes fadeout { 0%,70% { opacity: 1; } 100% { opacity: 0; } }
+
+    /* 命中标记：准星上短暂闪现的 X */
+    #hitmarker {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      color: #fff; font-size: 20px; font-weight: 700; opacity: 0; z-index: 6;
+      text-shadow: 0 0 3px rgba(0,0,0,.9); pointer-events: none;
+    }
+    #hitmarker.head { color: #e5b45a; }
+    #hitmarker.show { animation: hitflash .22s ease-out; }
+    @keyframes hitflash { 0% { opacity: 1; transform: translate(-50%,-50%) scale(1.4); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1); } }
+
+    /* 胜负横幅 */
+    #banner {
+      position: fixed; left: 50%; top: 42%; transform: translateX(-50%);
+      font-size: 34px; font-weight: 800; letter-spacing: .1em; z-index: 8;
+      text-shadow: 0 2px 12px rgba(0,0,0,.9); text-align: center;
+    }
+    #banner.hidden { display: none; }
+
+    #btn-fire.on { background: rgba(230,120,90,.4); border-color: rgba(255,150,120,.8); }
   </style>
 </head>
 <body>
@@ -139,6 +214,25 @@
   <div id="crosshair" class="hidden"></div>
   <div id="place" class="hidden"></div>
   <div id="stats" class="hidden"></div>
+
+  <div id="combat-hud" class="hidden">
+    <div id="scorebar">
+      <span class="blue" id="score-blue">0</span>
+      <span class="sep">击杀 · 先到 <span id="score-target">50</span> 胜</span>
+      <span class="red" id="score-red">0</span>
+    </div>
+    <div id="health-wrap">
+      <div id="health-track"><div id="health-bar"></div></div>
+      <div id="health-num">100</div>
+    </div>
+    <div id="ammo">
+      <span class="count" id="ammo-count">30</span>
+      <div class="name" id="ammo-name">步枪</div>
+    </div>
+    <div id="killfeed"></div>
+  </div>
+  <div id="hitmarker">✕</div>
+  <div id="banner" class="hidden"></div>
 
   <script type="module" src="/src/main.js"></script>
 </body>

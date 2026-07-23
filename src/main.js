@@ -5,6 +5,7 @@ import { Player } from './player.js';
 import { Footsteps } from './audio.js';
 import { Hud } from './hud.js';
 import { TouchControls, isTouchDevice } from './touch.js';
+import { Arena } from './combat/arena.js';
 
 const canvas = document.getElementById('view');
 const hud = new Hud();
@@ -28,6 +29,19 @@ const manager = new THREE.LoadingManager();
 manager.onProgress = (_url, loaded, total) => hud.progress(loaded, total);
 
 const campus = new Campus(scene);
+
+// 本地死亡竞赛。敌人在玩家落地后 deploy。
+const arena = new Arena(scene, {
+  onKill: ({ headshot, score }) => {
+    hud.killFeed(headshot ? '你 ⟶ 爆头击杀 敌军' : '你 ⟶ 击杀 敌军', headshot);
+    const snap = arena.snapshot();
+    if (snap.winner) {
+      hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
+    }
+  },
+  onHit: (headshot) => hud.hitMarker(headshot),
+});
+let deployed = false;
 
 async function boot() {
   try {
@@ -80,8 +94,15 @@ document.addEventListener('pointerlockchange', () => {
   else hud.exitPlay();
 });
 
+// 开火输入。桌面：按住鼠标左键连发（射速由武器门控）；换弹 R。
+let mouseFiring = false;
+window.addEventListener('mousedown', (e) => { if (e.button === 0 && playing()) mouseFiring = true; });
+window.addEventListener('mouseup', (e) => { if (e.button === 0) mouseFiring = false; });
+window.addEventListener('blur', () => { mouseFiring = false; });
+
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') footsteps.toggle();
+  if (e.code === 'KeyR') arena.reload();
 });
 
 addEventListener('resize', () => {
@@ -104,6 +125,8 @@ Object.assign(window, {
   __player: player,
   __campus: campus,
   __footsteps: footsteps,
+  __arena: arena,
+  __camera: camera,
 
   __debugPose: (pos, look) => {
     camera.position.set(...pos);
@@ -132,6 +155,18 @@ renderer.setAnimationLoop(() => {
     player.update(dt, campus.collider);
     footsteps.update(player.bobPhaseValue, player.grounded, player.sprinting);
     hud.setPlace(campus.nearestLandmark(player.position));
+
+    // 玩家落地后把敌人铺到场上（一次）。
+    if (!deployed && player.grounded) {
+      arena.deploy(player.position);
+      deployed = true;
+    }
+
+    if (deployed) {
+      arena.update(dt);
+      if (mouseFiring || touch.firing) arena.fire(camera);
+      hud.setCombat(arena.snapshot());
+    }
   }
 
   daylight.update(player.position);

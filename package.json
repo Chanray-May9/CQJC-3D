@@ -9,6 +9,7 @@
     "textures": "python tools/fetch_textures.py",
     "test": "node --test test/*.test.js",
     "test:walk": "node tools/walk-test.mjs",
+    "test:combat": "node tools/combat-test.mjs",
     "shots": "node tools/shoot.mjs shots",
     "deploy": "npm run build && node tools/deploy-pages.mjs",
     "test:touch": "node tools/touch-test.mjs"
