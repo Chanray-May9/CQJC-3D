@@ -41,12 +41,24 @@ export class Avatar {
     // 头 + 钢盔
     add(new THREE.SphereGeometry(0.16, 16, 12), skin, 0, HEAD_Y, 0);
     add(new THREE.SphereGeometry(0.185, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), gear, 0, HEAD_Y + 0.03, 0);
-    // 双臂
-    add(new THREE.BoxGeometry(0.14, 0.56, 0.16), cloth, -0.32, 1.02, 0);
-    add(new THREE.BoxGeometry(0.14, 0.56, 0.16), cloth, 0.32, 1.02, 0);
-    // 双腿（深色裤装）
-    add(new THREE.BoxGeometry(0.18, 0.72, 0.2), gear, -0.13, 0.38, 0);
-    add(new THREE.BoxGeometry(0.18, 0.72, 0.2), gear, 0.13, 0.38, 0);
+    // 铰接肢体：支点在髋/肩，肢体盒向下偏移，便于绕支点摆动做走路动画。
+    const limb = (geo, mat, px, pivotY, len) => {
+      const pivot = new THREE.Group();
+      pivot.position.set(px, pivotY, 0);
+      const m = new THREE.Mesh(geo, mat);
+      m.position.y = -len / 2;
+      m.castShadow = true;
+      pivot.add(m);
+      this.group.add(pivot);
+      return pivot;
+    };
+    // 双臂（支点在肩 y≈1.3）
+    this.armL = limb(new THREE.BoxGeometry(0.14, 0.52, 0.16), cloth, -0.32, 1.3, 0.52);
+    this.armR = limb(new THREE.BoxGeometry(0.14, 0.52, 0.16), cloth, 0.32, 1.3, 0.52);
+    // 双腿（支点在髋 y≈0.74，深色裤装）
+    this.legL = limb(new THREE.BoxGeometry(0.18, 0.72, 0.2), gear, -0.13, 0.74, 0.72);
+    this.legR = limb(new THREE.BoxGeometry(0.18, 0.72, 0.2), gear, 0.13, 0.74, 0.72);
+    this._walk = 0;
 
     // hitscan 命中球（覆盖躯干与头，略放大更跟手）
     this.bodyRadius = 0.52;
@@ -88,14 +100,25 @@ export class Avatar {
     // 倒地动画由 update() 逐帧推进，避免瞬间穿地。
   }
 
-  // 每帧推进倒地动画：绕脚底向后躺平，并抬升半个身体厚度以免陷入地面。
-  update(dt) {
-    if (this.dead && this._fall < 1) {
-      this._fall = Math.min(1, this._fall + dt * 3.2);
-      const e = 1 - Math.pow(1 - this._fall, 3);   // ease-out
-      this.group.rotation.x = -Math.PI / 2 * e;    // 绕脚底后仰躺平
-      this.group.position.y = this._footY + 0.16 * e;  // 抬起，躺平时身体贴地不穿模
+  // 每帧：推进倒地动画(死亡)或走路摆肢(存活)。speed = 当前移动速度(m/s)。
+  update(dt, speed = 0) {
+    if (this.dead) {
+      if (this._fall < 1) {
+        this._fall = Math.min(1, this._fall + dt * 3.2);
+        const e = 1 - Math.pow(1 - this._fall, 3);
+        this.group.rotation.x = -Math.PI / 2 * e;
+        this.group.position.y = this._footY + 0.16 * e;
+      }
+      return;
     }
+    // 走路：肢体绕支点前后摆动，幅度随速度增减；静止时回正。
+    const intensity = Math.min(1, speed / 4);
+    this._walk += dt * (4 + speed * 1.6);
+    const swing = Math.sin(this._walk) * 0.6 * intensity;
+    this.legL.rotation.x = swing;
+    this.legR.rotation.x = -swing;
+    this.armL.rotation.x = -swing * 0.8;
+    this.armR.rotation.x = swing * 0.8;
   }
 
   bodyWorldCenter() {
