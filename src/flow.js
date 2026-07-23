@@ -62,7 +62,6 @@ export class Flow {
 
   // ---- 内部流程 ----
   #beginIntro() {
-    this.onGesture();          // 用户手势：解锁音频。
     this.state = 'intro';
     this._introElapsed = 0;
     this.#show('intro');
@@ -71,7 +70,7 @@ export class Flow {
     this.#speak(NARRATION);
   }
 
-  #toFaction() { this.#stopSpeak(); this.state = 'faction'; this.#show('faction'); }
+  #toFaction() { this.state = 'faction'; this.#show('faction'); }
   #toMode() { this.state = 'mode'; this.#show('mode'); }
   #toMatch() {
     this.state = 'match';
@@ -94,19 +93,14 @@ export class Flow {
   }
 
   #finishMatch() {
-    this.$('match-status').textContent = '未找到足够玩家，已为双方补充人机 · 即将开始';
+    this.$('match-status').textContent = '未找到足够玩家，已为双方补充人机 · 匹配完成';
     this.$('match-fill').style.width = '100%';
-    this.state = 'countdown';
-    let n = 3;
-    const tick = () => {
-      this.$('match-status').textContent = `战斗准备 ${n}…`;
-      if (n <= 0) { this.#startMatch(); return; }
-      n--; setTimeout(tick, 700);
-    };
-    tick();
+    this.state = 'matched';
+    setTimeout(() => { if (this.state === 'matched') this.#toFaction(); }, 1000);
   }
 
   #startMatch() {
+    this.#stopSpeak();
     this.#hideAll();
     this.state = 'playing';
     this.onStart(this.faction, this.mode);
@@ -128,7 +122,7 @@ export class Flow {
     const look = wp[i].look.clone().lerp(wp[j].look, e);
     this.camera.position.copy(pos);
     this.camera.lookAt(look);
-    if (this._introElapsed >= this._introDur) this.#toFaction();
+    if (this._introElapsed >= this._introDur) this.#startMatch();
   }
 
   // ---- 语音 ----
@@ -163,13 +157,14 @@ export class Flow {
   #hideAll() { this.root.querySelectorAll('.screen').forEach((s) => s.classList.remove('active')); }
 
   #bind() {
-    this.$('title-start').addEventListener('click', () => this.#beginIntro());
-    this.$('intro-skip').addEventListener('click', () => { clearInterval(this._typer); this.#toFaction(); });
-    this.root.querySelectorAll('#screen-faction [data-team]').forEach((b) =>
-      b.addEventListener('click', () => { this.faction = b.dataset.team; this.#toMode(); }));
+    // 顺序：开始 → 选模式 → 匹配 → 选阵营 → 旁白开场 → 战场
+    this.$('title-start').addEventListener('click', () => { this.onGesture(); this.#toMode(); });
     this.root.querySelectorAll('#screen-mode [data-mode]').forEach((b) =>
       b.addEventListener('click', () => { this.mode = b.dataset.mode; this.#toMatch(); }));
     this.$('match-skip').addEventListener('click', () => this.#finishMatch());
+    this.root.querySelectorAll('#screen-faction [data-team]').forEach((b) =>
+      b.addEventListener('click', () => { this.faction = b.dataset.team; this.#beginIntro(); }));
+    this.$('intro-skip').addEventListener('click', () => { clearInterval(this._typer); this.#stopSpeak(); this.#startMatch(); });
     this.$('result-again').addEventListener('click', () => location.reload());
   }
 
