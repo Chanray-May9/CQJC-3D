@@ -1,23 +1,21 @@
-import * as THREE from 'three';
-
 /**
  * Touch controls for phones and tablets.
  *
- * Pointer lock does not exist on mobile, and there is no keyboard, so the
- * desktop control scheme leaves a phone user standing still. This replaces it
- * with the layout every mobile shooter uses:
- *
- *   left half   floating stick -- appears where the thumb lands, drag to walk
+ *   left half   floating stick -- appears where the thumb lands, drag to move.
+ *               往前推是走路；推过阈值是奔跑；推到底松手是"奔跑锁定"(持续前进)。
  *   right half  drag to look
- *   buttons     sprint (toggle) and jump, bottom right
+ *   buttons     开火(最大) + 瞄准(右上) + 跳 + 换弹，围绕开火按钮。
  *
- * Multi-touch is tracked per pointer id, so looking around while walking works;
- * handling only a single active touch is the usual reason these feel broken.
+ * Multi-touch is tracked per pointer id, so looking around while moving works.
  */
 
 const STICK_RADIUS = 62;      // px from centre for full deflection
 const STICK_DEADZONE = 0.12;  // fraction of radius ignored, stops thumb jitter
 const LOOK_SCALE = 1.5;       // touch drags cover fewer pixels than a mouse
+
+const RUN_THRESHOLD = 0.72;   // 摇杆前推超过此比例(向前为主) → 奔跑
+const LOCK_THRESHOLD = 0.94;  // 推到接近顶端再松手 → 锁定奔跑
+const FORWARD_MIN = 0.45;     // 前向分量至少这么大才算"往前推"
 
 /** Touch-primary device? Coarse pointer plus an actual touch digitiser. */
 export function isTouchDevice() {
@@ -31,10 +29,16 @@ export class TouchControls {
     this.container = container;
     this.enabled = false;
 
-    // pointerId -> what that finger is doing
     this.stickTouch = null;   // { id, originX, originY }
     this.lookTouch = null;    // { id, lastX, lastY }
-    this.firing = false;      // 开火按钮是否按住，main.js 每帧读取
+
+    // main.js 每帧读取这些标志。
+    this.firing = false;
+    this.aiming = false;
+    this.onReload = () => {};
+
+    this.runLock = false;     // 奔跑锁定(松手后持续前进)
+    this._inLockZone = false; // 当前摇杆是否在"推到顶"区
 
     this.root = this.#buildUi();
     this.#bind();
@@ -47,42 +51,42 @@ export class TouchControls {
       <div id="stick-base"><div id="stick-knob"></div></div>
       <div id="touch-buttons">
         <button id="btn-fire" type="button">开火</button>
-        <button id="btn-sprint" type="button">跑</button>
+        <button id="btn-aim" type="button">瞄准</button>
         <button id="btn-jump" type="button">跳</button>
+        <button id="btn-reload" type="button">换弹</button>
       </div>
     `;
     this.container.appendChild(root);
 
     this.base = root.querySelector('#stick-base');
     this.knob = root.querySelector('#stick-knob');
-    this.sprintBtn = root.querySelector('#btn-sprint');
-    this.jumpBtn = root.querySelector('#btn-jump');
     this.fireBtn = root.querySelector('#btn-fire');
+    this.aimBtn = root.querySelector('#btn-aim');
+    this.jumpBtn = root.querySelector('#btn-jump');
+    this.reloadBtn = root.querySelector('#btn-reload');
     return root;
   }
 
   #bind() {
-    const jump = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.player.jumpQueued = true;
-    };
-    const sprint = (e) => {
-      e.preventDefault();
-      e.stopPropagation();
-      this.player.sprintHeld = !this.player.sprintHeld;
-      this.sprintBtn.classList.toggle('on', this.player.sprintHeld);
-    };
-    this.jumpBtn.addEventListener('pointerdown', jump);
-    this.sprintBtn.addEventListener('pointerdown', sprint);
+    const stop = (e) => { e.preventDefault(); e.stopPropagation(); };
 
-    // 开火：按住连发（实际射速由武器运行时门控）。firing 由 main.js 每帧读取。
-    const fireOn = (e) => { e.preventDefault(); e.stopPropagation(); this.firing = true; this.fireBtn.classList.add('on'); };
-    const fireOff = (e) => { e.preventDefault(); e.stopPropagation(); this.firing = false; this.fireBtn.classList.remove('on'); };
-    this.fireBtn.addEventListener('pointerdown', fireOn);
+    // 跳、换弹：点按。
+    this.jumpBtn.addEventListener('pointerdown', (e) => { stop(e); this.player.jumpQueued = true; });
+    this.reloadBtn.addEventListener('pointerdown', (e) => { stop(e); this.onReload(); });
+
+    // 开火：按住连发(射速由武器门控)。
+    this.fireBtn.addEventListener('pointerdown', (e) => { stop(e); this.firing = true; this.fireBtn.classList.add('on'); });
+    const fireOff = (e) => { stop(e); this.firing = false; this.fireBtn.classList.remove('on'); };
     this.fireBtn.addEventListener('pointerup', fireOff);
     this.fireBtn.addEventListener('pointercancel', fireOff);
     this.fireBtn.addEventListener('pointerleave', fireOff);
+
+    // 瞄准：按住开镜。
+    this.aimBtn.addEventListener('pointerdown', (e) => { stop(e); this.aiming = true; this.aimBtn.classList.add('on'); });
+    const aimOff = (e) => { stop(e); this.aiming = false; this.aimBtn.classList.remove('on'); };
+    this.aimBtn.addEventListener('pointerup', aimOff);
+    this.aimBtn.addEventListener('pointercancel', aimOff);
+    this.aimBtn.addEventListener('pointerleave', aimOff);
 
     const el = this.container;
     el.addEventListener('pointerdown', (e) => this.#down(e), { passive: false });
@@ -95,11 +99,11 @@ export class TouchControls {
     if (!this.enabled || e.pointerType !== 'touch') return;
     e.preventDefault();
 
-    // Left half drives the stick, right half drives the camera. Splitting by
-    // screen half rather than by a fixed stick position lets the stick appear
-    // under the thumb wherever it lands, which is far more forgiving in play.
     if (e.clientX < window.innerWidth * 0.45) {
       if (this.stickTouch) return;
+      // 重新握摇杆即解除奔跑锁定，交回手动控制。
+      this.runLock = false;
+      this.player.sprintHeld = false;
       this.stickTouch = { id: e.pointerId, originX: e.clientX, originY: e.clientY };
       this.base.style.left = `${e.clientX}px`;
       this.base.style.top = `${e.clientY}px`;
@@ -122,14 +126,20 @@ export class TouchControls {
       const clamped = Math.min(dist, STICK_RADIUS);
 
       let mag = clamped / STICK_RADIUS;
-      // Rescale past the deadzone so the stick still reaches full speed.
       mag = mag < STICK_DEADZONE ? 0 : (mag - STICK_DEADZONE) / (1 - STICK_DEADZONE);
 
       const ux = dist > 0 ? dx / dist : 0;
       const uy = dist > 0 ? dy / dist : 0;
+      const forward = -uy;                 // 屏幕向上=前进
 
       this.player.analog.x = ux * mag;
-      this.player.analog.y = -uy * mag;   // screen down is backwards
+      this.player.analog.y = forward * mag;
+
+      // 分级：前推为主且推得够远 → 奔跑；推到接近顶端 → 进入锁定区。
+      const pushingForward = forward > FORWARD_MIN;
+      this.player.sprintHeld = pushingForward && mag >= RUN_THRESHOLD;
+      this._inLockZone = pushingForward && mag >= LOCK_THRESHOLD;
+
       this.#setKnob(ux * clamped, uy * clamped);
       return;
     }
@@ -148,10 +158,20 @@ export class TouchControls {
   #up(e) {
     if (this.stickTouch?.id === e.pointerId) {
       this.stickTouch = null;
-      this.player.analog.x = 0;
-      this.player.analog.y = 0;
       this.base.classList.remove('active');
       this.#setKnob(0, 0);
+      if (this._inLockZone) {
+        // 推到顶松手 → 锁定奔跑：持续全速前进，直到再次握摇杆。
+        this.runLock = true;
+        this.player.analog.x = 0;
+        this.player.analog.y = 1;
+        this.player.sprintHeld = true;
+      } else {
+        this.player.analog.x = 0;
+        this.player.analog.y = 0;
+        this.player.sprintHeld = false;
+      }
+      this._inLockZone = false;
     }
     if (this.lookTouch?.id === e.pointerId) this.lookTouch = null;
   }
@@ -166,8 +186,12 @@ export class TouchControls {
     if (!on) {
       this.player.analog.x = 0;
       this.player.analog.y = 0;
+      this.player.sprintHeld = false;
       this.stickTouch = null;
       this.lookTouch = null;
+      this.runLock = false;
+      this.firing = false;
+      this.aiming = false;
     }
   }
 }

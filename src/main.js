@@ -34,6 +34,7 @@ const viewModel = new ViewModel(camera);
 
 const touchMode = isTouchDevice();
 const touch = new TouchControls(player, document.body);
+touch.onReload = () => { if (arena) arena.reload(); };   // 触屏换弹按钮
 let touchPlaying = false;
 
 let arena = null;
@@ -139,6 +140,7 @@ Object.assign(window, {
   __camera: camera,
   __vm: viewModel,
   __flow: flow,
+  __touch: touch,
   get __arena() { return arena; },
   // 测试用：只建立对局(不进入 playing，避免渲染循环与测试双重步进)。
   __buildArena: (faction = 'blue') => { startMatch(faction); flow.hideMenus(); return arena; },
@@ -188,8 +190,8 @@ renderer.setAnimationLoop(() => {
       flow.showResult(snap.winner, arena.playerTeam, snap.blue, snap.red);
     }
 
-    // 开镜。
-    const wantAiming = aiming && canPlay();
+    // 开镜(桌面右键 / 触屏瞄准按钮)。
+    const wantAiming = (aiming || touch.aiming) && canPlay();
     viewModel.setAiming(wantAiming);
     const targetFov = wantAiming ? HIP_FOV * 0.62 : HIP_FOV;
     if (Math.abs(camera.fov - targetFov) > 0.05) {
