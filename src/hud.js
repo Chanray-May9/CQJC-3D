@@ -27,6 +27,8 @@ export class Hud {
       killfeed: document.getElementById('killfeed'),
       hitmarker: document.getElementById('hitmarker'),
       banner: document.getElementById('banner'),
+      damageFlash: document.getElementById('damage-flash'),
+      death: document.getElementById('death'),
     };
     this.frames = 0;
     this.fpsClock = performance.now();
@@ -105,6 +107,17 @@ export class Hud {
     b.style.color = team === 'blue' ? '#5aa0e6' : '#e56a5a';
     b.classList.remove('hidden');
   }
+
+  damageFlash() {
+    const f = this.el.damageFlash;
+    if (!f) return;
+    f.classList.remove('hit');
+    void f.offsetWidth;
+    f.classList.add('hit');
+  }
+
+  showDeath() { this.el.death?.classList.add('show'); }
+  clearDeath() { this.el.death?.classList.remove('show'); }
 
   exitPlay() {
     this.el.start.classList.remove('hidden');

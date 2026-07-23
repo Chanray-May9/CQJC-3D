@@ -211,6 +211,26 @@
     #banner.hidden { display: none; }
 
     #btn-fire.on { background: rgba(230,120,90,.4); border-color: rgba(255,150,120,.8); }
+
+    /* 受击红屏 */
+    #damage-flash {
+      position: fixed; inset: 0; z-index: 6; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 160px 40px rgba(200,20,20,.7);
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(160,10,10,.35) 100%);
+    }
+    #damage-flash.hit { animation: dmgflash .4s ease-out; }
+    @keyframes dmgflash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+    /* 阵亡遮罩 */
+    #death {
+      position: fixed; inset: 0; z-index: 8; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      background: rgba(20,0,0,.45); backdrop-filter: grayscale(.7) blur(1px);
+      opacity: 0; transition: opacity .3s;
+    }
+    #death.show { opacity: 1; }
+    #death .big { font-size: 44px; font-weight: 800; color: #e56a5a; letter-spacing: .12em; text-shadow: 0 2px 10px rgba(0,0,0,.9); }
+    #death .sub { font-size: 15px; color: #cdd7e2; letter-spacing: .18em; }
   </style>
 </head>
 <body>
@@ -262,6 +282,11 @@
   </div>
   <div id="hitmarker">✕</div>
   <div id="banner" class="hidden"></div>
+  <div id="damage-flash"></div>
+  <div id="death">
+    <div class="big">阵亡</div>
+    <div class="sub">复活中…</div>
+  </div>
 
   <script type="module" src="/src/main.js"></script>
 </body>
