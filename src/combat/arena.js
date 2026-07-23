@@ -63,6 +63,9 @@ export class Arena {
 
   setCollider(collider) { this._collider = collider; }
 
+  // 公开：某点地面高度(供玩家出生落地)。
+  groundHeight(x, z) { return this.#groundY(x, z); }
+
   #groundY(x, z) {
     if (!this._collider) return 0;
     const ray = new THREE.Ray(new THREE.Vector3(x, 300, z), new THREE.Vector3(0, -1, 0));
@@ -182,6 +185,11 @@ export class Arena {
     for (const b of this.bots) b.postStep(dt, ctx);
 
     this.mode.update(this.state, dt);
+
+    // 死亡瞬间触发倒地动画。
+    for (const b of this.bots) {
+      if (!b.c.alive && !b.avatar.dead) b.avatar.setDead(true);
+    }
 
     // 复活：机器人回己方阵营区，玩家回蓝区。
     for (const b of this.bots) {

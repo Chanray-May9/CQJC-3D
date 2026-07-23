@@ -56,21 +56,21 @@ export class ViewModel {
     const skin = new THREE.MeshStandardMaterial({ color: 0xd9a67a, roughness: 0.6 });
     const arms = new THREE.Group();
 
-    // 手放在枪上，前臂朝相机下方斜伸。
+    // 手放在枪上，长前臂朝相机下方(屏幕底部/玩家身体方向)延伸——避免"断手悬空"。
     const makeArm = (px, py, pz, rotX, rotZ) => {
       const arm = new THREE.Group();
-      const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.038, 0.2, 4, 8), sleeve);
-      fore.position.set(0, -0.12, 0.02);      // 前臂从手部向后下伸出
-      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.055, 0.08), skin);
+      const fore = new THREE.Mesh(new THREE.CapsuleGeometry(0.05, 0.42, 5, 10), sleeve);
+      fore.position.set(0, -0.26, 0);         // 前臂从手部长长地向后下伸到画面底
+      const hand = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.06, 0.1), skin);
       arm.add(fore, hand);
-      arm.position.set(px, py, pz);
+      arm.position.set(px, py, pz);           // 手的位置(贴在枪上)
       arm.rotation.set(rotX, 0, rotZ);
       return arm;
     };
 
-    // 右手握把（靠后偏右），左手托前护木（靠前）。
-    arms.add(makeArm(0.03, -0.02, 0.05, 1.15, 0.25));
-    arms.add(makeArm(-0.02, -0.02, -0.13, 1.3, -0.2));
+    // 右手握把(靠后)，左手托前护木(靠前)。前臂大角度下压伸向右下角。
+    arms.add(makeArm(0.04, -0.05, 0.07, 1.35, 0.35));
+    arms.add(makeArm(-0.03, -0.04, -0.13, 1.45, 0.05));
     arms.traverse((o) => { if (o.isMesh) { o.renderOrder = 998; o.frustumCulled = false; o.castShadow = false; } });
 
     this._arms = arms;

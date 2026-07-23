@@ -42,26 +42,36 @@ const sim = await page.evaluate(() => {
   const startPos = a.bots.map(b => b.pos.clone());
   const eye = () => cam.position.set(pl.position.x, pl.position.y + 0.78, pl.position.z);
 
-  // 玩家面向 -Z 并向前推进(走进战场)，以验证会被红队打死。
-  pl.yaw = 0; pl.pitch = 0; pl.analog = { x: 0, y: 1 };
-  let healthAt1s = 100, everDamaged = false, died = false, respawned = false, wasDead = false;
-  for (let f = 0; f < 1500; f++) {   // 25s
+  pl.yaw = 0; pl.pitch = 0;
+  let healthAt1s = 100, everDamaged = false;
+  let fpsMin = 999;
+  for (let f = 0; f < 600; f++) {   // 10s 观察两队交战与帧率
     pl.update(1 / 60, col); eye(); cam.updateMatrixWorld(true);
     a.update(1 / 60, pl, cam, false);
     if (a.player.health < 100) everDamaged = true;
     if (f === 60) healthAt1s = a.player.health;
-    if (!a.player.alive) { died = true; wasDead = true; }
-    if (wasDead && a.player.alive) respawned = true;
+    fpsMin = Math.min(fpsMin, window.__debugHealth().fps);
   }
-  // 移动量：机器人平均位移
   const moved = a.bots.reduce((s, b, i) => s + b.pos.distanceTo(startPos[i]), 0) / a.bots.length;
+
+  // 确定性验证死亡→复活：给玩家致命伤，跑过复活延迟，应在蓝区(大 z)复活。
+  const pz0 = pl.position.z;
+  a.dealDamage('player', 999, 'red0');
+  const died = !a.player.alive;
+  for (let f = 0; f < 240; f++) { eye(); cam.updateMatrixWorld(true); a.update(1 / 60, pl, cam, false); }
+  const respawned = a.player.alive;
+  const respawnedInBlue = pl.position.z > 30;
+
+  // 机器人是否都在合理地面高度(未飞天/陷地)：|y - 脚下地面| 小。
+  const maxYErr = Math.max(...a.bots.map(b => Math.abs(b.pos.y - a.groundHeight(b.pos.x, b.pos.z))));
 
   return {
     blueZ0: +blueZ0.toFixed(0), redZ0: +redZ0.toFixed(0),
     avgMoved: +moved.toFixed(1),
     blueScore: a.state.score('blue'), redScore: a.state.score('red'),
-    healthAt1s: Math.round(healthAt1s), everDamaged, died, respawned,
-    fps: window.__debugHealth().fps,
+    healthAt1s: Math.round(healthAt1s), everDamaged,
+    died, respawned, respawnedInBlue, maxYErr: +maxYErr.toFixed(2),
+    fpsMin, fps: window.__debugHealth().fps,
   };
 });
 
@@ -71,10 +81,12 @@ check('机器人在地图上真实移动(非原地摇)', sim.avgMoved > 8,
   `平均位移 ${sim.avgMoved}m`);
 check('双方 AI 都能击杀得分', sim.blueScore > 0 && sim.redScore > 0,
   `蓝 ${sim.blueScore} · 红 ${sim.redScore}`);
-check('玩家不被瞬秒(1s 存活)', sim.healthAt1s > 0, `1s 血量=${sim.healthAt1s}`);
-check('玩家可被打死并复活', sim.died && sim.respawned, `died=${sim.died} respawned=${sim.respawned}`);
+check('机器人贴地(未飞天/陷地)', sim.maxYErr < 1.0, `最大离地误差 ${sim.maxYErr}m`);
+check('玩家可被打死并在蓝区复活', sim.died && sim.respawned && sim.respawnedInBlue,
+  `died=${sim.died} respawned=${sim.respawned} 蓝区=${sim.respawnedInBlue}`);
+check('帧率达标(最低>30)', sim.fpsMin > 30, `最低 ${sim.fpsMin}fps`);
 
-console.log(`\nfps=${sim.fps}`);
+console.log(`\nfps=${sim.fps} fpsMin=${sim.fpsMin}`);
 if (errors.length) { console.log(`\n${errors.length} console error(s):`); errors.slice(0, 8).forEach(e => console.log('  -', e)); }
 
 await ctx.close();

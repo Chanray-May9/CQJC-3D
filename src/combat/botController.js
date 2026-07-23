@@ -50,6 +50,7 @@ export class BotController {
 
     this._strafePhase = Math.random() * Math.PI * 2;
     this._losTimer = Math.random() * LOS_INTERVAL;
+    this._groundTimer = Math.random() * 0.15;
     this._hasLOS = false;
     this._mayShoot = true;
     this._lastShotAt = -99;
@@ -130,6 +131,12 @@ export class BotController {
       this.vehicle.position.copy(this._prev);
       this.vehicle.velocity.multiplyScalar(0.2);
     }
+    // 贴地：每 ~0.15s 用下射线取脚下地面高度，跟随地形起伏(否则跑到高低处会飘/陷)。
+    this._groundTimer -= dt;
+    if (this._groundTimer <= 0) {
+      this._groundTimer = 0.15;
+      this.groundY = this.#groundAt(ctx.collider, this.vehicle.position.x, this.vehicle.position.z);
+    }
     this.vehicle.position.y = this.groundY;
     this.vehicle.velocity.y = 0;
     this.pos.set(this.vehicle.position.x, this.groundY, this.vehicle.position.z);
@@ -171,6 +178,13 @@ export class BotController {
     this._ray.direction.copy(this._tmp).normalize();
     const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
     return !hit || hit.distance >= d - 0.8;
+  }
+
+  #groundAt(collider, x, z) {
+    this._ray.origin.set(x, this.groundY + 60, z);
+    this._ray.direction.set(0, -1, 0);
+    const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
+    return hit ? hit.point.y : this.groundY;
   }
 
   #blocked(collider) {
