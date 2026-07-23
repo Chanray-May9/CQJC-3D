@@ -1,18 +1,18 @@
 {
   "name": "campus3d",
-  "version": "0.1.0",
-  "description": "重庆建筑工程职业学院 3D 校园漫游",
+  "version": "0.2.0",
+  "description": "时空战场 · 团队竞技枪战(重庆建筑工程职业学院校园)",
   "scripts": {
     "dev": "vite --port 5183 --host 127.0.0.1",
     "build": "vite build",
     "preview": "vite preview --port 5183",
     "textures": "python tools/fetch_textures.py",
     "test": "node --test test/*.test.js",
-    "test:walk": "node tools/walk-test.mjs",
     "test:combat": "node tools/combat-test.mjs",
+    "test:ai": "node tools/ai-test.mjs",
+    "test:flow": "node tools/flow-test.mjs",
     "shots": "node tools/shoot.mjs shots",
-    "deploy": "npm run build && node tools/deploy-pages.mjs",
-    "test:touch": "node tools/touch-test.mjs"
+    "deploy": "npm run build && node tools/deploy-pages.mjs"
   },
   "type": "module",
   "dependencies": {

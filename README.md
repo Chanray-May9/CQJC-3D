@@ -1,6 +1,17 @@
-# 重庆建筑工程职业学院 · 校园漫游
+# 时空战场 · 团队竞技枪战
 
-把 `chongqing-jianzhu-campus.glb` 这个基础体块模型变成浏览器里能第一人称走动的场景：扫描级 PBR 材质、上午光照与真实投影、胶囊体碰撞、程序化脚步声。
+在重庆建筑工程职业学院 3D 校园里的第一人称 **8v8 团队竞技枪战**（three.js）。
+
+**故事**：1947 年国共内战正酣，一道时空裂隙把两支军队连人带枪卷入这座现代校园，战斗在此继续。玩家自选加入**国民党（国军·蓝）**或**共产党（共军·红）**，哪队击杀数先到 **50** 获胜。
+
+## 玩法特性
+
+- **完整流程**：开场旁白演出（语音 + 地图扫描运镜，可跳过）→ 阵营选择 → 模式选择 → 匹配（预计 20 秒，凑不满自动填人机）→ 对局 → 结算。
+- **8v8**：你 + 7 名 AI 队友 对阵 8 名 AI 敌军，两队在地图两端各自阵营区出生/复活。
+- **人机 AI**：基于 [Yuka](https://mugen87.github.io/yuka/) 转向行为的真实机动（追击/走位/漫游/分离）+ 状态机开火决策；有反应延迟、命中概率、同时开火上限，做到"比真人稍强但不秒杀"。
+- **战斗**：5 种枪械（手枪/步枪/冲锋枪/狙击/霰弹，各具属性），射线命中 + 爆头 1.5×，自动/手动换弹，右键开镜，合成枪声，第一人称手臂持枪，士兵走路/倒地动画。
+- **可扩展**：战术竞技/占点/攻防模式已在菜单预留（敬请期待）；联机为后续规划，当前为单机 + 人机。
+- 基座仍是原校园漫游：扫描级 PBR 材质、上午光照与投影、胶囊体碰撞、程序化脚步声。
 
 ## 在线体验
 
@@ -25,9 +36,9 @@ npm run dev        # http://127.0.0.1:5183
 
 ## 操作
 
-**电脑** — `WASD` 移动，`Shift` 疾跑，`空格` 跳跃，鼠标转视角，`M` 静音，`Esc` 退出。
+**电脑** — `WASD` 移动，`Shift` 疾跑，`空格` 跳跃，鼠标转视角，**左键开火**，**右键开镜**，`R` 换弹，`M` 静音，`Esc` 暂停（点击画面重新进入）。
 
-**手机** — 左半屏按住拖动是移动摇杆（半推半速），右半屏拖动转视角，右下角「跑 / 跳」按钮。
+**手机** — 左半屏摇杆移动，右半屏拖动转视角，右下角「开火 / 跑 / 跳」按钮。
 
 ## 命令
 
@@ -36,10 +47,30 @@ npm run dev        # http://127.0.0.1:5183
 | `npm run dev` | 开发服务器 |
 | `npm run build` | 打包到 `dist/` |
 | `npm run deploy` | 构建并发布到 GitHub Pages |
-| `npm run textures` | 重新下载 CC0 材质并生成清单 |
-| `npm test` | 桌面行走 / 碰撞 / 跳跃，8 项 |
-| `npm run test:touch` | 模拟 Pixel 7 的触摸操控，9 项 |
+| `npm test` | 逻辑核心单元测试（武器/战斗员/规则/AI），43 项 |
+| `npm run test:combat` | 开火→命中→击杀→记分冒烟 |
+| `npm run test:ai` | 8v8 人机 AI 冒烟（分区/机动/交战/复活/帧率） |
+| `npm run test:flow` | 菜单流程冒烟（开场/阵营/模式/匹配/对局） |
 | `npm run shots` | 生成 `shots/` 下的效果截图 |
+
+> 冒烟测试需先 `npm run dev` 起本地服务器再运行。
+
+## 结构（战斗系统）
+
+```
+src/flow.js                流程状态机：开场演出/阵营/模式/匹配/结算
+src/combat/arena.js        对局：8v8 编队、两端阵营区、记分、复活、伤害结算
+src/combat/botController.js 机器人集成：Yuka 转向机动 + 开火 + 贴地 + LOS
+src/game/botBrain.js       AI 状态机 + 命中概率模型（纯逻辑，单测）
+src/combat/hitscan.js      射线-球体命中判定（纯数学，单测）
+src/game/weapons.js        5 种枪械配置表 + 伤害衰减（单测）
+src/game/weaponRuntime.js  弹药/射速/换弹（单测）
+src/game/combatant.js      战斗员：血量/受击/死亡/复活/回血（单测）
+src/game/deathmatch.js     死亡竞赛规则：记分/复活/胜负（单测）
+src/combat/avatars.js      士兵人形 + 走路/倒地动画
+src/combat/viewmodel.js    第一人称枪模（CC0 GLB）+ 手臂
+assets/weapons/*.glb       Quaternius《Ultimate Guns Pack》CC0 枪模
+```
 
 ## 打包安卓 APK
 
@@ -94,6 +125,8 @@ tools/                     材质下载、截图、测试
 - 远景无阴影（见上）。
 - 树叶用原始平面色，没有贴图 —— 低面数树冠贴上树叶材质反而更假。
 
-## 素材授权
+## 素材 / 库授权
 
-材质来自 [ambientCG](https://ambientcg.com)，CC0 公共领域，可商用。
+- 校园材质：[ambientCG](https://ambientcg.com)，CC0，可商用。
+- 枪械模型：Quaternius《Ultimate Guns Pack》（[poly.pizza](https://poly.pizza)），CC0，可商用。
+- AI 库：[Yuka](https://github.com/Mugen87/yuka)，MIT。士兵人形为程序化几何占位（后续可换 CC0 人形模型）。
