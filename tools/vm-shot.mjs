@@ -11,10 +11,7 @@ const ctx = await chromium.launchPersistentContext(
 );
 const page = await ctx.newPage();
 await page.goto('http://127.0.0.1:5183/', { waitUntil: 'load', timeout: 120000 });
-await page.waitForFunction(
-  () => document.getElementById('start')?.classList.contains('hidden') === false,
-  null, { timeout: 120000 });
-await page.click('#start');
+await page.waitForFunction(() => !!window.__campus?.collider, null, { timeout: 120000 });
 await page.waitForTimeout(600);
 // 切到指定枪并等待 GLB 加载
 await page.evaluate((w) => window.__vm?.setWeapon(w), weapon);

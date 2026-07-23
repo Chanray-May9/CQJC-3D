@@ -7,15 +7,12 @@ import { Hud } from './hud.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 import { Arena } from './combat/arena.js';
 import { ViewModel } from './combat/viewmodel.js';
+import { Flow } from './flow.js';
 
 const canvas = document.getElementById('view');
 const hud = new Hud();
 
-const renderer = new THREE.WebGLRenderer({
-  canvas,
-  antialias: true,
-  powerPreference: 'high-performance',
-});
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
 renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
 renderer.setSize(innerWidth, innerHeight);
 
@@ -31,71 +28,73 @@ manager.onProgress = (_url, loaded, total) => hud.progress(loaded, total);
 
 const campus = new Campus(scene);
 
-// 本地死亡竞赛。敌人在玩家落地后 deploy。
-const arena = new Arena(scene, {
-  onKill: ({ headshot }) => {
-    hud.killFeed(headshot ? '你 ⟶ 爆头击杀 敌军' : '你 ⟶ 击杀 敌军', headshot);
-    const snap = arena.snapshot();
-    if (snap.winner) hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
-  },
-  onHit: (headshot) => hud.hitMarker(headshot),
-  onPlayerHit: () => hud.damageFlash(),
-  onPlayerDied: () => hud.showDeath(),
-  onPlayerRespawn: () => hud.clearDeath(),
-});
-let deployed = false;
-let bannerShown = false;
-
-// 相机需在场景图里，其子物体(枪模)才会渲染。
+// 相机入场景，其子物体(枪模)才渲染。
 scene.add(camera);
 const viewModel = new ViewModel(camera);
-viewModel.setWeapon(arena.weapon.weapon.id);
+
+const touchMode = isTouchDevice();
+const touch = new TouchControls(player, document.body);
+let touchPlaying = false;
+
+let arena = null;
+let bannerShown = false;
+
+// 流程：标题→开场→阵营→模式→匹配→对局。匹配结束回调 startMatch。
+const flow = new Flow({
+  camera,
+  onGesture: () => footsteps.resume(),
+  onStart: (faction) => startMatch(faction),
+});
 
 async function boot() {
   try {
-    const info = await campus.load('assets/campus.glb', manager, daylight.environment);
-    arena.setCollider(campus.collider);
-
-    // 直接把玩家放在广场地面上(不再从天上砸下来)。
-    const gy = arena.groundHeight(0, 70);
-    player.position.set(0, gy + 0.95, 70);
-
-    hud.ready(`${info.meshCount} 个网格 · ${info.landmarks} 处地标`, touchMode);
+    await campus.load('assets/campus.glb', manager, daylight.environment);
+    hud.hideLoader();
   } catch (err) {
     console.error(err);
     hud.fail(`载入失败: ${err.message}`);
   }
 }
 
-/*
- * Input mode.
- *
- * Desktop gates play on pointer lock. Mobile has no pointer lock and no
- * keyboard, so it gates on an explicit flag instead and drives the player
- * through the on-screen stick.
- */
-const touchMode = isTouchDevice();
-const touch = new TouchControls(player, document.body);
-let touchPlaying = false;
+// 匹配完成：按所选阵营建立对局。
+function startMatch(faction) {
+  arena = new Arena(scene, {
+    playerTeam: faction,
+    onKill: ({ headshot }) => hud.killFeed(headshot ? '你 ⟶ 爆头击杀 敌军' : '你 ⟶ 击杀 敌军', headshot),
+    onHit: (headshot) => hud.hitMarker(headshot),
+    onPlayerHit: () => hud.damageFlash(),
+    onPlayerDied: () => hud.showDeath(),
+    onPlayerRespawn: () => hud.clearDeath(),
+  });
+  arena.setCollider(campus.collider);
+  arena.deploy();
+  viewModel.setWeapon(arena.weapon.weapon.id);
+  window.__arena = arena;
 
-const playing = () => (touchMode ? touchPlaying : player.locked);
+  const s = arena.playerSpawn();
+  const gy = arena.groundHeight(s.x, s.z);
+  player.position.set(s.x, gy + 0.95, s.z);
+  player.velocity.set(0, 0, 0);
+  // 面向地图中心(敌方方向)。
+  player.yaw = faction === 'blue' ? Math.PI : 0;
+  player.pitch = 0;
+  bannerShown = false;
 
-// The start overlay covers the canvas, so it -- not the canvas -- receives the
-// tap or click that has to unlock audio and begin play.
-function enter() {
-  footsteps.resume();
+  hud.enterPlay();
   if (touchMode) {
     touchPlaying = true;
     touch.setEnabled(true);
     document.body.classList.add('touch-mode');
-    hud.enterPlay();
-  } else {
-    player.requestLock();
   }
 }
 
-canvas.addEventListener('click', enter);
-document.getElementById('start').addEventListener('click', enter);
+const gameActive = () => arena && flow.playing;
+const canPlay = () => (touchMode ? touchPlaying : player.locked);
+
+// 菜单结束后，桌面端点击画面锁定视角进入操作。
+canvas.addEventListener('click', () => {
+  if (gameActive() && !touchMode && !player.locked) player.requestLock();
+});
 
 document.addEventListener('pointerlockchange', () => {
   if (touchMode) return;
@@ -103,11 +102,11 @@ document.addEventListener('pointerlockchange', () => {
   else hud.exitPlay();
 });
 
-// 开火输入。桌面：按住鼠标左键连发（射速由武器门控）；右键开镜；换弹 R。
+// 开火输入：左键连发、右键开镜、R 换弹。
 let mouseFiring = false;
 let aiming = false;
 window.addEventListener('mousedown', (e) => {
-  if (!playing()) return;
+  if (!gameActive() || !canPlay()) return;
   if (e.button === 0) mouseFiring = true;
   if (e.button === 2) aiming = true;
 });
@@ -119,10 +118,9 @@ window.addEventListener('contextmenu', (e) => e.preventDefault());
 window.addEventListener('blur', () => { mouseFiring = false; aiming = false; });
 
 const HIP_FOV = 72;
-
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') footsteps.toggle();
-  if (e.code === 'KeyR') arena.reload();
+  if (e.code === 'KeyR' && arena) arena.reload();
 });
 
 addEventListener('resize', () => {
@@ -131,37 +129,22 @@ addEventListener('resize', () => {
   renderer.setSize(innerWidth, innerHeight);
 });
 
-/**
- * Hooks used by tools/ for screenshots and tests.
- *
- * The screenshot rig cannot acquire pointer lock, so it poses the camera through
- * __debugPose. The movement tests drive the controller directly rather than
- * through DOM input, because an automated pointer-lock session emits spurious
- * mousemove and keydown events that make measured distances meaningless.
- * Nothing in normal play calls any of this.
- */
 Object.assign(window, {
   THREE,
   __player: player,
   __campus: campus,
   __footsteps: footsteps,
-  __arena: arena,
   __camera: camera,
   __vm: viewModel,
-
-  __debugPose: (pos, look) => {
-    camera.position.set(...pos);
-    camera.lookAt(new THREE.Vector3(...look));
-    // The shadow frustum tracks the player, so move it with the debug camera.
-    player.position.set(...pos);
-  },
-
+  __flow: flow,
+  get __arena() { return arena; },
+  // 测试用：只建立对局(不进入 playing，避免渲染循环与测试双重步进)。
+  __buildArena: (faction = 'blue') => { startMatch(faction); flow.hideMenus(); return arena; },
+  // 测试用：真正进入对局(渲染循环驱动)。
+  __startMatch: (faction = 'blue') => { startMatch(faction); flow.hideMenus(); flow.state = 'playing'; return arena; },
   __debugHealth: () => ({
     drawCalls: renderer.info.render.calls,
     triangles: renderer.info.render.triangles,
-    geometries: renderer.info.memory.geometries,
-    textures: renderer.info.memory.textures,
-    landmarks: campus.landmarks.map((l) => l.label),
     fps: hud.fps,
   }),
 });
@@ -172,50 +155,43 @@ renderer.setAnimationLoop(() => {
   timer.update();
   const dt = timer.getDelta();
 
-  if (campus.collider && playing()) {
-    // 阵亡期间冻结移动(不能再走动)，但仍需推进 arena 以计时复活。
-    const frozen = deployed && !arena.player.alive;
-    if (!frozen) {
+  flow.update(dt);
+
+  if (gameActive()) {
+    const frozen = !arena.player.alive;
+    if (canPlay() && !frozen) {
       player.update(dt, campus.collider);
       footsteps.update(player.bobPhaseValue, player.grounded, player.sprinting);
       hud.setPlace(campus.nearestLandmark(player.position));
     }
 
-    // 玩家落地后把敌人铺到场上（一次）。
-    if (!deployed && player.grounded) {
-      arena.deploy(player.position);
-      deployed = true;
+    const playerMoving = player.speed > 0.6;
+    arena.update(dt, player, camera, playerMoving);
+    arena.resolvePlayerCollision(player);
+
+    if (canPlay() && (mouseFiring || touch.firing) && arena.player.alive) {
+      if (arena.fire(camera)) { footsteps.playShot(arena.weapon.weapon.id); viewModel.kick(); }
     }
 
-    if (deployed) {
-      const playerMoving = player.speed > 0.6;
-      arena.update(dt, player, camera, playerMoving);
-      arena.resolvePlayerCollision(player);
-      if ((mouseFiring || touch.firing) && arena.player.alive) {
-        const fired = arena.fire(camera);
-        if (fired) {
-          footsteps.playShot(arena.weapon.weapon.id);
-          viewModel.kick();
-        }
-      }
-      const snap = arena.snapshot();
-      hud.setCombat(snap);
-      if (snap.winner && !bannerShown) {
-        hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
-        bannerShown = true;
-      }
+    const snap = arena.snapshot();
+    hud.setCombat(snap);
+    if (snap.winner && !bannerShown) {
+      bannerShown = true;
+      hud.exitPlay();
+      if (!touchMode && player.locked) document.exitPointerLock?.();
+      flow.showResult(snap.winner === arena.playerTeam, snap.blue, snap.red);
     }
-  }
 
-  // 开镜：拉近 FOV，枪模移到中心。
-  const wantAiming = aiming && playing();
-  viewModel.setAiming(wantAiming);
-  const targetFov = wantAiming ? HIP_FOV * 0.62 : HIP_FOV;
-  if (Math.abs(camera.fov - targetFov) > 0.05) {
-    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 12);
-    camera.updateProjectionMatrix();
+    // 开镜。
+    const wantAiming = aiming && canPlay();
+    viewModel.setAiming(wantAiming);
+    const targetFov = wantAiming ? HIP_FOV * 0.62 : HIP_FOV;
+    if (Math.abs(camera.fov - targetFov) > 0.05) {
+      camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 12);
+      camera.updateProjectionMatrix();
+    }
+    viewModel.update(dt);
   }
-  viewModel.update(dt);
 
   daylight.update(player.position);
   hud.tick(player.sprinting);

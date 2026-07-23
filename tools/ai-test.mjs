@@ -18,22 +18,18 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 await page.goto('http://127.0.0.1:5183/', { waitUntil: 'load', timeout: 120000 });
-await page.waitForFunction(
-  () => document.getElementById('start')?.classList.contains('hidden') === false,
-  null, { timeout: 120000 });
-await page.click('#start');
+await page.waitForFunction(() => !!window.__campus?.collider, null, { timeout: 120000 });
 await page.waitForTimeout(500);
 
 const results = [];
 const check = (n, p, d) => { results.push({ n, p }); console.log(`${p ? 'PASS' : 'FAIL'}  ${n}\n        ${d}`); };
 
 const sim = await page.evaluate(() => {
-  const a = window.__arena, pl = window.__player, cam = window.__camera, THREE = window.THREE;
+  const pl = window.__player, cam = window.__camera, THREE = window.THREE;
   const col = window.__campus.collider;
-  a.setCollider(col);
+  const a = window.__buildArena('blue');   // 建立对局(不进 playing，测试自行步进)
   pl.position.set(0, 3, 70); pl.velocity.set(0, 0, 0);
   for (let i = 0; i < 120; i++) pl.update(1 / 60, col);
-  a.deploy(pl.position.clone());
 
   // 出生分区：蓝队平均 z 应明显大于红队平均 z。
   const avgZ = (t) => { const g = a.bots.filter(b => b.c.team === t); return g.reduce((s, b) => s + b.pos.z, 0) / g.length; };
