@@ -52,8 +52,10 @@ export class Avatar {
     const facePhoto = new THREE.MeshBasicMaterial({ map: FACE_TEX[team] ?? FACE_TEX.blue });
     const headSkin = new THREE.MeshStandardMaterial({ color: SKIN, roughness: 0.6 });
     const headMats = [headSkin, headSkin, headSkin, headSkin, facePhoto, facePhoto]; // +X,-X,+Y,-Y,+Z,-Z
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.5, 0.54, 0.18), headMats);
-    head.position.set(0, HEAD_Y + 0.04, 0);
+    // 放大三倍的巨型大头照(喜剧效果)，抬高使其坐在肩上。
+    const HEAD_CENTER = 2.05;
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.35, 1.45, 0.42), headMats);
+    head.position.set(0, HEAD_CENTER, 0);
     head.castShadow = true;
     this.group.add(head);
     this._face = head;
@@ -93,9 +95,9 @@ export class Avatar {
 
     // hitscan 命中球（覆盖躯干与头，略放大更跟手）
     this.bodyRadius = 0.52;
-    this.headRadius = 0.24;
+    this.headRadius = 0.68;          // 命中球随巨型大头照放大(打中大头就算爆头)
     this._bodyOffset = BODY_HIT_Y;
-    this._headOffset = HEAD_Y;
+    this._headOffset = 2.05;         // 对齐巨型头中心
     this._tmp = new THREE.Vector3();
     this.dead = false;
     this._footY = 0;
