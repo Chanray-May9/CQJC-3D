@@ -34,6 +34,7 @@ export class TouchControls {
     // pointerId -> what that finger is doing
     this.stickTouch = null;   // { id, originX, originY }
     this.lookTouch = null;    // { id, lastX, lastY }
+    this.firing = false;      // 开火按钮是否按住，main.js 每帧读取
 
     this.root = this.#buildUi();
     this.#bind();
@@ -45,6 +46,7 @@ export class TouchControls {
     root.innerHTML = `
       <div id="stick-base"><div id="stick-knob"></div></div>
       <div id="touch-buttons">
+        <button id="btn-fire" type="button">开火</button>
         <button id="btn-sprint" type="button">跑</button>
         <button id="btn-jump" type="button">跳</button>
       </div>
@@ -55,6 +57,7 @@ export class TouchControls {
     this.knob = root.querySelector('#stick-knob');
     this.sprintBtn = root.querySelector('#btn-sprint');
     this.jumpBtn = root.querySelector('#btn-jump');
+    this.fireBtn = root.querySelector('#btn-fire');
     return root;
   }
 
@@ -72,6 +75,14 @@ export class TouchControls {
     };
     this.jumpBtn.addEventListener('pointerdown', jump);
     this.sprintBtn.addEventListener('pointerdown', sprint);
+
+    // 开火：按住连发（实际射速由武器运行时门控）。firing 由 main.js 每帧读取。
+    const fireOn = (e) => { e.preventDefault(); e.stopPropagation(); this.firing = true; this.fireBtn.classList.add('on'); };
+    const fireOff = (e) => { e.preventDefault(); e.stopPropagation(); this.firing = false; this.fireBtn.classList.remove('on'); };
+    this.fireBtn.addEventListener('pointerdown', fireOn);
+    this.fireBtn.addEventListener('pointerup', fireOff);
+    this.fireBtn.addEventListener('pointercancel', fireOff);
+    this.fireBtn.addEventListener('pointerleave', fireOff);
 
     const el = this.container;
     el.addEventListener('pointerdown', (e) => this.#down(e), { passive: false });

@@ -14,6 +14,17 @@ export class Hud {
       place: document.getElementById('place'),
       stats: document.getElementById('stats'),
       crosshair: document.getElementById('crosshair'),
+      combat: document.getElementById('combat-hud'),
+      scoreBlue: document.getElementById('score-blue'),
+      scoreRed: document.getElementById('score-red'),
+      scoreTarget: document.getElementById('score-target'),
+      healthBar: document.getElementById('health-bar'),
+      healthNum: document.getElementById('health-num'),
+      ammoCount: document.getElementById('ammo-count'),
+      ammoName: document.getElementById('ammo-name'),
+      killfeed: document.getElementById('killfeed'),
+      hitmarker: document.getElementById('hitmarker'),
+      banner: document.getElementById('banner'),
     };
     this.frames = 0;
     this.fpsClock = performance.now();
@@ -46,6 +57,49 @@ export class Hud {
     this.el.crosshair.classList.remove('hidden');
     this.el.place.classList.remove('hidden');
     this.el.stats.classList.remove('hidden');
+    if (this.el.combat) this.el.combat.classList.remove('hidden');
+  }
+
+  /** 每帧刷新战斗数值：血量/弹药/比分。参数为 Arena.snapshot()。 */
+  setCombat(s) {
+    if (!this.el.combat) return;
+    this.el.healthBar.style.width = `${Math.max(0, s.health)}%`;
+    this.el.healthBar.style.background = s.health > 40
+      ? 'linear-gradient(90deg, #4caf50, #8bd48e)'
+      : 'linear-gradient(90deg, #c0392b, #e57368)';
+    this.el.healthNum.textContent = String(s.health);
+    this.el.ammoCount.textContent = s.reloading ? '换弹…' : String(s.ammo);
+    this.el.ammoCount.classList.toggle('reloading', s.reloading);
+    this.el.ammoName.textContent = s.weaponName;
+    this.el.scoreBlue.textContent = String(s.blue);
+    this.el.scoreRed.textContent = String(s.red);
+    this.el.scoreTarget.textContent = String(s.target);
+  }
+
+  killFeed(text, headshot = false) {
+    if (!this.el.killfeed) return;
+    const item = document.createElement('div');
+    item.className = 'item' + (headshot ? ' head' : '');
+    item.textContent = text;
+    this.el.killfeed.appendChild(item);
+    setTimeout(() => item.remove(), 3000);
+  }
+
+  hitMarker(headshot = false) {
+    const m = this.el.hitmarker;
+    if (!m) return;
+    m.classList.toggle('head', headshot);
+    m.classList.remove('show');
+    void m.offsetWidth; // 重启动画
+    m.classList.add('show');
+  }
+
+  banner(text, team) {
+    const b = this.el.banner;
+    if (!b) return;
+    b.textContent = text;
+    b.style.color = team === 'blue' ? '#5aa0e6' : '#e56a5a';
+    b.classList.remove('hidden');
   }
 
   exitPlay() {

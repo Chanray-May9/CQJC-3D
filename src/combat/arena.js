@@ -65,10 +65,10 @@ export class Arena {
     e.avatar.setFootPosition(e.spawn.x, e.spawn.y, e.spawn.z);
   }
 
-  // 玩家开火：从相机发射线，命中最近敌人则结算伤害。now 为游戏时钟(秒)。
-  fire(camera, now) {
+  // 玩家开火：从相机发射线，命中最近敌人则结算伤害。用内部游戏时钟门控射速。
+  fire(camera) {
     if (!this.player.alive) return false;
-    if (!this.weapon.tryFire(now)) return false;
+    if (!this.weapon.tryFire(this.clock)) return false;
 
     const origin = camera.position;
     const dir = camera.getWorldDirection(new THREE.Vector3());
@@ -98,9 +98,9 @@ export class Arena {
     return true;
   }
 
-  reload(now) { this.weapon.reload(now); }
+  reload() { this.weapon.reload(this.clock); }
 
-  update(dt, player) {
+  update(dt) {
     this.clock += dt;
     const now = this.clock;
 
