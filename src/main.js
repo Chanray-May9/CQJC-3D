@@ -75,9 +75,11 @@ function startMatch(faction) {
   const gy = arena.groundHeight(s.x, s.z);
   player.position.set(s.x, gy + 0.95, s.z);
   player.velocity.set(0, 0, 0);
-  // 面向地图中心(敌方方向)。
-  player.yaw = faction === 'blue' ? Math.PI : 0;
+  // 面向敌方阵营(地图另一端)方向。
+  const enemyZone = arena.enemyZone();
+  player.yaw = Math.atan2(enemyZone.x - s.x, enemyZone.z - s.z) + Math.PI;
   player.pitch = 0;
+  player.snapCamera();          // 相机立刻回到玩家视角(不再卡在开场俯瞰镜头)
   bannerShown = false;
 
   hud.enterPlay();
@@ -192,6 +194,9 @@ renderer.setAnimationLoop(() => {
     }
     viewModel.update(dt);
   }
+
+  // 枪模仅在对局中显示(菜单/开场演出时隐藏)。
+  viewModel.group.visible = gameActive();
 
   daylight.update(player.position);
   hud.tick(player.sprinting);
