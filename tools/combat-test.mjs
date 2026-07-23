@@ -22,10 +22,7 @@ page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => m.type() === 'error' && errors.push(m.text()));
 
 await page.goto('http://127.0.0.1:5183/', { waitUntil: 'load', timeout: 120000 });
-await page.waitForFunction(
-  () => document.getElementById('start')?.classList.contains('hidden') === false,
-  null, { timeout: 120000 },
-);
+await page.waitForFunction(() => !!window.__campus?.collider, null, { timeout: 120000 });
 
 const results = [];
 const check = (name, pass, detail) => {
@@ -33,19 +30,10 @@ const check = (name, pass, detail) => {
   console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}\n        ${detail}`);
 };
 
-await page.click('#start');
-await page.waitForTimeout(400);
-
-const hudShown = await page.evaluate(
-  () => document.getElementById('combat-hud')?.classList.contains('hidden') === false);
-check('进入游戏后战斗 HUD 显示', hudShown, `combat-hud visible=${hudShown}`);
-
 const sim = await page.evaluate(() => {
-  const arena = window.__arena;
   const camera = window.__camera;
   const THREE = window.THREE;
-
-  arena.deploy(new THREE.Vector3(0, 2, 0));
+  const arena = window.__buildArena('blue');
 
   // 隔离测试开火链路：把 0 号机器人放到相机正前方并冻结(不跑 AI 移动)，
   // 手动步进 arena.clock 越过射速冷却，只验证 开火→命中→击杀→记分。
@@ -65,12 +53,15 @@ const sim = await page.evaluate(() => {
     if (fired) shots++;
   }
 
+  const hudShown = document.getElementById('combat-hud')?.classList.contains('hidden') === false;
   return {
     dead: !bot.c.alive,
     scoreBefore, scoreAfter: arena.state.score('blue'),
-    ammoBefore, ammoAfter: arena.weapon.ammo, shots,
+    ammoBefore, ammoAfter: arena.weapon.ammo, shots, hudShown,
   };
 });
+
+check('战斗 HUD 显示', sim.hudShown, `combat-hud visible=${sim.hudShown}`);
 
 check('相机前方敌人被击杀', sim.dead, `enemy.alive=${!sim.dead}, 用了 ${sim.shots} 发`);
 check('蓝方(国军)比分 +1', sim.scoreAfter === sim.scoreBefore + 1,

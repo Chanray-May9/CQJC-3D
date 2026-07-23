@@ -24,13 +24,16 @@ const BLUE_WEAPONS = ['rifle', 'rifle', 'smg', 'sniper', 'rifle', 'smg', 'shotgu
 const RED_WEAPONS = ['rifle', 'rifle', 'smg', 'rifle', 'sniper', 'smg', 'rifle', 'shotgun'];
 
 export class Arena {
-  constructor(scene, { onKill, onHit, onPlayerHit, onPlayerDied, onPlayerRespawn, playerWeaponId = 'rifle' } = {}) {
+  constructor(scene, { onKill, onHit, onPlayerHit, onPlayerDied, onPlayerRespawn, playerWeaponId = 'rifle', playerTeam = 'blue' } = {}) {
     this.scene = scene;
     this.onKill = onKill ?? (() => {});
     this.onHit = onHit ?? (() => {});
     this.onPlayerHit = onPlayerHit ?? (() => {});
     this.onPlayerDied = onPlayerDied ?? (() => {});
     this.onPlayerRespawn = onPlayerRespawn ?? (() => {});
+
+    this.playerTeam = playerTeam;                       // 'blue'(国军) | 'red'(共军)
+    this.enemyTeam = playerTeam === 'blue' ? 'red' : 'blue';
 
     this.state = new GameState();
     this.mode = new DeathmatchMode({ killTarget: KILL_TARGET, respawnDelay: RESPAWN_DELAY });
@@ -40,18 +43,22 @@ export class Arena {
     this._playerWasDead = false;
     this._playerMoving = false;
 
-    // 玩家：蓝队，是 8 个蓝方之一。
-    this.player = new Combatant({ id: 'player', team: 'blue', isBot: false });
+    // 玩家：所选阵营的 8 人之一。
+    this.player = new Combatant({ id: 'player', team: playerTeam, isBot: false });
     this.state.add(this.player);
     this.weapon = new WeaponRuntime(WEAPONS[playerWeaponId]);
 
     this.blueZone = new THREE.Vector3();
     this.redZone = new THREE.Vector3();
 
+    // 玩家队补 7 个 AI 队友；敌队 8 个 AI。
     this.bots = [];
-    for (let i = 0; i < TEAM_SIZE - 1; i++) this.#addBot('blue', `blue${i}`, BLUE_WEAPONS[i % BLUE_WEAPONS.length]);
-    for (let i = 0; i < TEAM_SIZE; i++) this.#addBot('red', `red${i}`, RED_WEAPONS[i % RED_WEAPONS.length]);
+    const teamWeapons = { blue: BLUE_WEAPONS, red: RED_WEAPONS };
+    for (let i = 0; i < TEAM_SIZE - 1; i++) this.#addBot(playerTeam, `${playerTeam}${i}`, teamWeapons[playerTeam][i % teamWeapons[playerTeam].length]);
+    for (let i = 0; i < TEAM_SIZE; i++) this.#addBot(this.enemyTeam, `${this.enemyTeam}${i}`, teamWeapons[this.enemyTeam][i % teamWeapons[this.enemyTeam].length]);
   }
+
+  #zoneOf(team) { return team === 'blue' ? this.blueZone : this.redZone; }
 
   #addBot(team, id, weaponId) {
     const combatant = new Combatant({ id, team, isBot: true });
@@ -73,12 +80,10 @@ export class Arena {
     return hit ? hit.point.y : 0;
   }
 
-  // 玩家落地后调用一次：定两端阵营区，铺开双方。
-  deploy(center) {
-    // 蓝队在玩家出生侧(+Z)，红队在对端(-Z)，沿中央走廊分布。
-    this.blueZone.set(0, 0, Math.max(40, center.z - 8));
+  // 定两端阵营区(蓝 +Z / 红 -Z)，铺开双方。玩家由 main 用 playerSpawn() 放置。
+  deploy() {
+    this.blueZone.set(0, 0, 60);
     this.redZone.set(0, 0, -55);
-
     let bi = 0, ri = 0;
     for (const bot of this.bots) {
       if (bot.c.team === 'blue') this.#spawnInZone(bot, this.blueZone, bi++);
@@ -86,6 +91,9 @@ export class Arena {
     }
     this.deployed = true;
   }
+
+  // 玩家出生点(己方阵营区)。deploy() 之后调用。
+  playerSpawn() { return this.#spawnPoint(this.#zoneOf(this.playerTeam), 7); }
 
   #spawnPoint(zone, i) {
     const ang = i * 2.399;                 // 黄金角散布
@@ -107,7 +115,7 @@ export class Arena {
     const origin = camera.position;
     const dir = camera.getWorldDirection(new THREE.Vector3());
     const targets = this.bots
-      .filter((b) => b.c.team === 'red' && b.c.alive)
+      .filter((b) => b.c.team === this.enemyTeam && b.c.alive)
       .map((b) => ({
         id: b.c.id,
         body: b.avatar.bodyWorldCenter(), bodyRadius: b.avatar.bodyRadius,
@@ -200,7 +208,7 @@ export class Arena {
       }
     }
     if (this._playerWasDead && this.player.alive) {
-      const p = this.#spawnPoint(this.blueZone, Math.floor(Math.random() * 6));
+      const p = this.#spawnPoint(this.#zoneOf(this.playerTeam), Math.floor(Math.random() * 6));
       player.position.set(p.x, p.y + 1.0, p.z);
       player.velocity.set(0, 0, 0);
       this.onPlayerRespawn();

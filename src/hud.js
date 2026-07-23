@@ -41,23 +41,14 @@ export class Hud {
     this.el.loaderText.textContent = label ?? `载入中 ${pct}%`;
   }
 
-  /** Load finished: swap the progress bar for the tap/click-to-enter prompt. */
-  ready(summary, touchMode = false) {
+  /** 载入完成：收起进度条(流程界面负责后续入口)。 */
+  hideLoader() {
     this.el.loader.classList.add('hidden');
-    this.el.start.classList.remove('hidden');
-    if (summary) this.el.start.querySelector('.detail').textContent = summary;
-
-    if (touchMode) {
-      this.el.start.querySelector('.enter').textContent = '点击进入';
-      this.el.start.querySelector('.keys').innerHTML = `
-        <span><b>左半屏</b> 摇杆移动</span>
-        <span><b>右半屏</b> 拖动转视角</span>
-        <span><b>跑 / 跳</b> 右下按钮</span>`;
-    }
+    this.el.start?.classList.add('hidden');
   }
 
   enterPlay() {
-    this.el.start.classList.add('hidden');
+    this.el.start?.classList.add('hidden');
     this.el.crosshair.classList.remove('hidden');
     this.el.place.classList.remove('hidden');
     this.el.stats.classList.remove('hidden');
@@ -119,8 +110,8 @@ export class Hud {
   showDeath() { this.el.death?.classList.add('show'); }
   clearDeath() { this.el.death?.classList.remove('show'); }
 
+  // 暂停(指针解锁)：仅收起准星，不弹旧遮罩。
   exitPlay() {
-    this.el.start.classList.remove('hidden');
     this.el.crosshair.classList.add('hidden');
   }
 
