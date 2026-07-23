@@ -1,0 +1,37 @@
+{
+  "asphalt": [
+    "ao",
+    "color",
+    "normal",
+    "roughness"
+  ],
+  "brick": [
+    "ao",
+    "color",
+    "normal",
+    "roughness"
+  ],
+  "concrete": [
+    "color",
+    "normal",
+    "roughness"
+  ],
+  "concrete_rough": [
+    "ao",
+    "color",
+    "normal",
+    "roughness"
+  ],
+  "grass": [
+    "ao",
+    "color",
+    "normal",
+    "roughness"
+  ],
+  "plaza": [
+    "ao",
+    "color",
+    "normal",
+    "roughness"
+  ]
+}

@@ -1,0 +1,303 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>蒋介石大战希特勒 · 时空战场</title>
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'><rect width='16' height='16' fill='%234a90d9'/><rect x='3' y='6' width='4' height='7' fill='%23fff'/><rect x='9' y='3' width='4' height='10' fill='%23fff'/></svg>">
+  <style>
+    :root { color-scheme: dark; }
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    html, body { height: 100%; overflow: hidden; background: #0d1117; }
+    body {
+      font-family: "PingFang SC", "Microsoft YaHei", system-ui, sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    #view { display: block; width: 100vw; height: 100vh; }
+
+    .overlay {
+      position: fixed; inset: 0;
+      display: flex; flex-direction: column;
+      align-items: center; justify-content: center;
+      gap: 18px; z-index: 10;
+      background: rgba(8, 12, 18, .82);
+      backdrop-filter: blur(6px);
+      transition: opacity .35s ease;
+    }
+    .overlay.hidden { opacity: 0; pointer-events: none; }
+
+    h1 { font-size: 26px; font-weight: 600; letter-spacing: .06em; color: #e8eef5; }
+    .detail { font-size: 13px; color: #8b98a8; letter-spacing: .04em; }
+
+    #loader-track {
+      width: 280px; height: 3px; border-radius: 3px;
+      background: rgba(255,255,255,.12); overflow: hidden;
+    }
+    #loader-bar {
+      height: 100%; width: 0%; border-radius: 3px;
+      background: linear-gradient(90deg, #4a90d9, #7fb2e5);
+      transition: width .25s ease;
+    }
+    #loader-text { font-size: 12px; color: #8b98a8; letter-spacing: .08em; }
+
+    #start { cursor: pointer; }
+    .enter {
+      padding: 11px 30px; border: 1px solid rgba(255,255,255,.22);
+      border-radius: 2px; font-size: 14px; letter-spacing: .12em;
+      color: #e8eef5; transition: background .2s, border-color .2s;
+    }
+    #start:hover .enter { background: rgba(255,255,255,.08); border-color: rgba(255,255,255,.4); }
+
+    .keys {
+      display: flex; gap: 20px; font-size: 12px;
+      color: #6f7d8c; letter-spacing: .05em;
+    }
+    .keys b { color: #a7b4c2; font-weight: 500; }
+
+    #crosshair {
+      position: fixed; left: 50%; top: 50%;
+      width: 3px; height: 3px; margin: -1.5px 0 0 -1.5px;
+      border-radius: 50%; background: rgba(255,255,255,.55);
+      box-shadow: 0 0 3px rgba(0,0,0,.8); z-index: 5;
+    }
+    #crosshair.hidden { display: none; }
+
+    #place {
+      position: fixed; left: 24px; bottom: 22px; z-index: 5;
+      font-size: 15px; letter-spacing: .1em; color: #e8eef5;
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    }
+    #stats {
+      position: fixed; right: 24px; bottom: 22px; z-index: 5;
+      font-size: 11px; letter-spacing: .08em; color: #8b98a8;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+    #place.hidden, #stats.hidden { display: none; }
+
+    /* --- touch controls (mobile only) --- */
+    #touch-ui { display: none; }
+    #touch-ui.visible { display: block; }
+
+    #stick-base {
+      position: fixed; z-index: 6;
+      width: 124px; height: 124px; margin: -62px 0 0 -62px;
+      border-radius: 50%; border: 1.5px solid rgba(255,255,255,.28);
+      background: rgba(255,255,255,.07);
+      opacity: 0; transition: opacity .15s ease;
+      pointer-events: none;
+    }
+    #stick-base.active { opacity: 1; }
+    #stick-knob {
+      position: absolute; left: 50%; top: 50%;
+      width: 52px; height: 52px; margin: -26px 0 0 -26px;
+      border-radius: 50%; background: rgba(255,255,255,.42);
+      box-shadow: 0 2px 10px rgba(0,0,0,.45);
+    }
+
+    /* 右下按钮群：开火最大居角，瞄准(右上)/换弹/跳 小按钮围绕。摇杆前推分级走跑，无跑步键。 */
+    #touch-buttons {
+      position: fixed; right: 24px; bottom: 52px; z-index: 7;
+      width: 200px; height: 210px;
+    }
+    #touch-buttons button {
+      position: absolute; border-radius: 50%;
+      border: 1.5px solid rgba(255,255,255,.3);
+      background: rgba(20,28,38,.42);
+      color: #e8eef5; letter-spacing: .04em;
+      font-family: inherit; -webkit-tap-highlight-color: transparent; touch-action: none;
+    }
+    #touch-buttons button:active { background: rgba(255,255,255,.22); }
+    #btn-fire {
+      right: 0; bottom: 0; width: 118px; height: 118px;
+      font-size: 21px; font-weight: 700;
+      border-color: rgba(255,150,120,.55); background: rgba(175,55,40,.4);
+    }
+    #btn-aim { right: 16px; bottom: 130px; width: 64px; height: 64px; font-size: 14px; }
+    #btn-aim.on { background: rgba(120,180,240,.5); border-color: rgba(160,205,255,.9); }
+    #btn-jump { right: 126px; bottom: 4px; width: 60px; height: 60px; font-size: 15px; }
+    #btn-reload { right: 120px; bottom: 88px; width: 52px; height: 52px; font-size: 12px; }
+
+    /* Stop the browser hijacking drags for scroll, pull-to-refresh and zoom. */
+    body.touch-mode { touch-action: none; overscroll-behavior: none; }
+    /* 手机端把弹药挪到按钮群上方，避免和开火大按钮重叠。 */
+    body.touch-mode #ammo { bottom: 272px; right: 20px; }
+
+    /* --- 战斗 HUD --- */
+    #combat-hud { position: fixed; inset: 0; z-index: 5; pointer-events: none; }
+    #combat-hud.hidden { display: none; }
+
+    /* 顶部比分：蓝(国军) vs 红(共军)。两条进度条同一水平线，从中间向两侧填充。 */
+    #scorebar {
+      position: absolute; left: 50%; top: 14px; transform: translateX(-50%);
+      display: flex; flex-direction: column; align-items: center; gap: 4px;
+      padding: 10px 20px 12px; border-radius: 8px;
+      background: linear-gradient(180deg, rgba(10,14,20,.72), rgba(10,14,20,.5));
+      border: 1px solid rgba(255,255,255,.08);
+      box-shadow: 0 4px 20px rgba(0,0,0,.5);
+      backdrop-filter: blur(4px);
+    }
+    #scorebar .row { display: flex; align-items: center; gap: 14px; }
+    #scorebar .num {
+      font-size: 40px; font-weight: 800; line-height: 1;
+      min-width: 56px; text-align: center; font-variant-numeric: tabular-nums;
+      text-shadow: 0 2px 4px rgba(0,0,0,.95);
+    }
+    #scorebar .num.blue { color: #6ab0f5; }
+    #scorebar .num.red { color: #f5776a; }
+    /* 两条并排的水平条：蓝条从右向左填(靠中)，红条从左向右填(靠中) */
+    #scorebar .bartrack {
+      width: 150px; height: 12px; border-radius: 6px; overflow: hidden;
+      background: rgba(255,255,255,.1); border: 1px solid rgba(255,255,255,.12);
+      display: flex;
+    }
+    #scorebar .bartrack.blue { justify-content: flex-end; }
+    #scorebar .barfill { height: 100%; width: 0%; transition: width .25s ease; }
+    #scorebar .barfill.blue { background: linear-gradient(90deg, #2f6fb0, #7cc0ff); box-shadow: 0 0 8px rgba(90,160,230,.6); }
+    #scorebar .barfill.red  { background: linear-gradient(90deg, #ff8b7c, #c0392b); box-shadow: 0 0 8px rgba(229,106,90,.6); }
+    #scorebar .goal {
+      font-size: 13px; font-weight: 600; color: #cdd7e2; letter-spacing: .14em;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+
+    /* 左下血量 */
+    #health-wrap {
+      position: absolute; left: 24px; bottom: 54px; width: 190px;
+    }
+    #health-track {
+      height: 12px; border-radius: 2px; background: rgba(255,255,255,.14);
+      border: 1px solid rgba(255,255,255,.18); overflow: hidden;
+    }
+    #health-bar {
+      height: 100%; width: 100%;
+      background: linear-gradient(90deg, #4caf50, #8bd48e);
+      transition: width .12s linear, background .2s;
+    }
+    #health-num {
+      font-size: 12px; color: #cdd7e2; letter-spacing: .08em; margin-top: 4px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9);
+    }
+
+    /* 右下弹药 */
+    #ammo {
+      position: absolute; right: 26px; bottom: 50px; text-align: right;
+      text-shadow: 0 1px 6px rgba(0,0,0,.9);
+    }
+    #ammo .count { font-size: 34px; font-weight: 800; color: #e8eef5; }
+    #ammo .count.reloading { color: #e5b45a; }
+    #ammo .name {
+      font-size: 15px; font-weight: 600; color: #cdd7e2; letter-spacing: .12em;
+      margin-top: 2px;
+    }
+
+    /* 击杀提示 */
+    #killfeed {
+      position: absolute; right: 24px; top: 58px;
+      display: flex; flex-direction: column; align-items: flex-end; gap: 4px;
+    }
+    #killfeed .item {
+      font-size: 13px; color: #e8eef5; letter-spacing: .04em;
+      background: rgba(12,18,26,.55); padding: 3px 9px; border-radius: 2px;
+      text-shadow: 0 1px 4px rgba(0,0,0,.9); animation: fadeout 3s forwards;
+    }
+    #killfeed .item.head { color: #e5b45a; }
+    @keyframes fadeout { 0%,70% { opacity: 1; } 100% { opacity: 0; } }
+
+    /* 命中标记：准星上短暂闪现的 X */
+    #hitmarker {
+      position: fixed; left: 50%; top: 50%; transform: translate(-50%,-50%);
+      color: #fff; font-size: 20px; font-weight: 700; opacity: 0; z-index: 6;
+      text-shadow: 0 0 3px rgba(0,0,0,.9); pointer-events: none;
+    }
+    #hitmarker.head { color: #e5b45a; }
+    #hitmarker.show { animation: hitflash .22s ease-out; }
+    @keyframes hitflash { 0% { opacity: 1; transform: translate(-50%,-50%) scale(1.4); } 100% { opacity: 0; transform: translate(-50%,-50%) scale(1); } }
+
+    /* 胜负横幅 */
+    #banner {
+      position: fixed; left: 50%; top: 42%; transform: translateX(-50%);
+      font-size: 34px; font-weight: 800; letter-spacing: .1em; z-index: 8;
+      text-shadow: 0 2px 12px rgba(0,0,0,.9); text-align: center;
+    }
+    #banner.hidden { display: none; }
+
+    #btn-fire.on { background: rgba(230,120,90,.62); border-color: rgba(255,175,145,.95); }
+
+    /* 受击红屏 */
+    #damage-flash {
+      position: fixed; inset: 0; z-index: 6; pointer-events: none; opacity: 0;
+      box-shadow: inset 0 0 160px 40px rgba(200,20,20,.7);
+      background: radial-gradient(ellipse at center, transparent 55%, rgba(160,10,10,.35) 100%);
+    }
+    #damage-flash.hit { animation: dmgflash .4s ease-out; }
+    @keyframes dmgflash { 0% { opacity: 1; } 100% { opacity: 0; } }
+
+    /* 阵亡遮罩 */
+    #death {
+      position: fixed; inset: 0; z-index: 8; pointer-events: none;
+      display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 8px;
+      background: rgba(20,0,0,.45); backdrop-filter: grayscale(.7) blur(1px);
+      opacity: 0; transition: opacity .3s;
+    }
+    #death.show { opacity: 1; }
+    #death .big { font-size: 44px; font-weight: 800; color: #e56a5a; letter-spacing: .12em; text-shadow: 0 2px 10px rgba(0,0,0,.9); }
+    #death .sub { font-size: 15px; color: #cdd7e2; letter-spacing: .18em; }
+  </style>
+  <script type="module" crossorigin src="./assets/index-BJOUxwD4.js"></script>
+</head>
+<body>
+  <canvas id="view"></canvas>
+
+  <div id="loader" class="overlay">
+    <h1>重庆建筑工程职业学院 · 校园漫游</h1>
+    <div id="loader-track"><div id="loader-bar"></div></div>
+    <div id="loader-text">载入中</div>
+  </div>
+
+  <div id="start" class="overlay hidden">
+    <h1>重庆建筑工程职业学院 · 校园漫游</h1>
+    <div class="detail"></div>
+    <div class="enter">点击进入</div>
+    <div class="keys">
+      <span><b>WASD</b> 移动</span>
+      <span><b>Shift</b> 疾跑</span>
+      <span><b>空格</b> 跳跃</span>
+      <span><b>鼠标</b> 视角</span>
+      <span><b>M</b> 静音</span>
+      <span><b>Esc</b> 退出</span>
+    </div>
+  </div>
+
+  <div id="crosshair" class="hidden"></div>
+  <div id="place" class="hidden"></div>
+  <div id="stats" class="hidden"></div>
+
+  <div id="combat-hud" class="hidden">
+    <div id="scorebar">
+      <div class="row">
+        <span class="num blue" id="score-blue">0</span>
+        <div class="bartrack blue"><div class="barfill blue" id="bar-blue"></div></div>
+        <div class="bartrack red"><div class="barfill red" id="bar-red"></div></div>
+        <span class="num red" id="score-red">0</span>
+      </div>
+      <div class="goal">蒋介石 &nbsp;击杀 <span id="score-target">50</span> 胜&nbsp; 希特勒</div>
+    </div>
+    <div id="health-wrap">
+      <div id="health-track"><div id="health-bar"></div></div>
+      <div id="health-num">100</div>
+    </div>
+    <div id="ammo">
+      <span class="count" id="ammo-count">30</span>
+      <div class="name" id="ammo-name">步枪</div>
+    </div>
+    <div id="killfeed"></div>
+  </div>
+  <div id="hitmarker">✕</div>
+  <div id="banner" class="hidden"></div>
+  <div id="damage-flash"></div>
+  <div id="death">
+    <div class="big">阵亡</div>
+    <div class="sub">复活中…</div>
+  </div>
+
+</body>
+</html>
