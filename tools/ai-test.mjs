@@ -31,9 +31,10 @@ const sim = await page.evaluate(() => {
   pl.position.set(0, 3, 70); pl.velocity.set(0, 0, 0);
   for (let i = 0; i < 120; i++) pl.update(1 / 60, col);
 
-  // 出生分区：蓝队平均 z 应明显大于红队平均 z。
-  const avgZ = (t) => { const g = a.bots.filter(b => b.c.team === t); return g.reduce((s, b) => s + b.pos.z, 0) / g.length; };
-  const blueZ0 = avgZ('blue'), redZ0 = avgZ('red');
+  // 出生分区：两队质心应相距很远(地图两端)，具体哪端随机。
+  const centroid = (t) => { const g = a.bots.filter(b => b.c.team === t); return { x: g.reduce((s, b) => s + b.pos.x, 0) / g.length, z: g.reduce((s, b) => s + b.pos.z, 0) / g.length }; };
+  const cb = centroid('blue'), cr = centroid('red');
+  const teamGap = Math.hypot(cb.x - cr.x, cb.z - cr.z);
 
   const startPos = a.bots.map(b => b.pos.clone());
   const eye = () => cam.position.set(pl.position.x, pl.position.y + 0.78, pl.position.z);
@@ -41,7 +42,7 @@ const sim = await page.evaluate(() => {
   pl.yaw = 0; pl.pitch = 0;
   let healthAt1s = 100, everDamaged = false;
   let fpsMin = 999;
-  for (let f = 0; f < 600; f++) {   // 10s 观察两队交战与帧率
+  for (let f = 0; f < 1500; f++) {   // 25s 观察两队跨图接敌交战与帧率
     pl.update(1 / 60, col); eye(); cam.updateMatrixWorld(true);
     a.update(1 / 60, pl, cam, false);
     if (a.player.health < 100) everDamaged = true;
@@ -56,13 +57,14 @@ const sim = await page.evaluate(() => {
   const died = !a.player.alive;
   for (let f = 0; f < 240; f++) { eye(); cam.updateMatrixWorld(true); a.update(1 / 60, pl, cam, false); }
   const respawned = a.player.alive;
-  const respawnedInBlue = pl.position.z > 30;
+  // 复活应回到己方(蓝)阵营区。
+  const respawnedInBlue = Math.hypot(pl.position.x - a.blueZone.x, pl.position.z - a.blueZone.z) < 30;
 
   // 机器人是否都在合理地面高度(未飞天/陷地)：|y - 脚下地面| 小。
   const maxYErr = Math.max(...a.bots.map(b => Math.abs(b.pos.y - a.groundHeight(b.pos.x, b.pos.z))));
 
   return {
-    blueZ0: +blueZ0.toFixed(0), redZ0: +redZ0.toFixed(0),
+    teamGap: +teamGap.toFixed(0),
     avgMoved: +moved.toFixed(1),
     blueScore: a.state.score('blue'), redScore: a.state.score('red'),
     healthAt1s: Math.round(healthAt1s), everDamaged,
@@ -71,8 +73,7 @@ const sim = await page.evaluate(() => {
   };
 });
 
-check('两队在地图两端分开出生', sim.blueZ0 - sim.redZ0 > 60,
-  `蓝队 z≈${sim.blueZ0} vs 红队 z≈${sim.redZ0}`);
+check('两队相距地图两端(质心>100m)', sim.teamGap > 100, `两队质心相距 ${sim.teamGap}m`);
 check('机器人在地图上真实移动(非原地摇)', sim.avgMoved > 8,
   `平均位移 ${sim.avgMoved}m`);
 check('双方 AI 都能击杀得分', sim.blueScore > 0 && sim.redScore > 0,
