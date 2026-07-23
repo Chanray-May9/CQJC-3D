@@ -144,6 +144,7 @@ Object.assign(window, {
   __footsteps: footsteps,
   __arena: arena,
   __camera: camera,
+  __vm: viewModel,
 
   __debugPose: (pos, look) => {
     camera.position.set(...pos);
