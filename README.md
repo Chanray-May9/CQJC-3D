@@ -2,6 +2,12 @@
 
 把 `chongqing-jianzhu-campus.glb` 这个基础体块模型变成浏览器里能第一人称走动的场景：扫描级 PBR 材质、上午光照与真实投影、胶囊体碰撞、程序化脚步声。
 
+## 在线体验
+
+**https://chanray-may9.github.io/CQJC-3D/**
+
+手机和电脑浏览器都能直接打开。
+
 ## 运行
 
 ```bash
@@ -9,7 +15,11 @@ npm install
 npm run dev        # http://127.0.0.1:5183
 ```
 
-打开后点击「点击进入」，`WASD` 移动，`Shift` 疾跑，`空格` 跳跃，`M` 静音，`Esc` 退出鼠标锁定。
+## 操作
+
+**电脑** — `WASD` 移动，`Shift` 疾跑，`空格` 跳跃，鼠标转视角，`M` 静音，`Esc` 退出。
+
+**手机** — 左半屏按住拖动是移动摇杆（半推半速），右半屏拖动转视角，右下角「跑 / 跳」按钮。
 
 ## 命令
 
@@ -17,9 +27,28 @@ npm run dev        # http://127.0.0.1:5183
 |---|---|
 | `npm run dev` | 开发服务器 |
 | `npm run build` | 打包到 `dist/` |
+| `npm run deploy` | 构建并发布到 GitHub Pages |
 | `npm run textures` | 重新下载 CC0 材质并生成清单 |
-| `npm test` | 行走 / 碰撞 / 跳跃自动化测试 |
+| `npm test` | 桌面行走 / 碰撞 / 跳跃，8 项 |
+| `npm run test:touch` | 模拟 Pixel 7 的触摸操控，9 项 |
 | `npm run shots` | 生成 `shots/` 下的效果截图 |
+
+## 打包安卓 APK
+
+用 Capacitor 把构建产物装进 WebView。需要 JDK 17 和 Android SDK（build-tools 34、platform 34）；
+仓库不含这套工具链，本机放在未跟踪的 `.toolchain/` 下。
+
+```bash
+npm run build
+npx cap add android            # 首次
+node tools/write-local-properties.mjs
+npx cap sync android
+cd android && ./gradlew.bat assembleDebug
+```
+
+产物在 `android/app/build/outputs/apk/debug/app-debug.apk`，应用名 **CQJC 3D**。
+
+调试版签名只用于自测；要给别人装或上架，需要自己生成 keystore 打签名的 release 版。
 
 ## 结构
 
