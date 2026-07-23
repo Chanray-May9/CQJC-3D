@@ -100,13 +100,21 @@ export class Arena {
 
   // 玩家出生点(己方阵营区)。deploy() 之后调用。
   playerSpawn() { return this.#spawnPoint(this.#zoneOf(this.playerTeam), 7); }
+  enemyZone() { return this.#zoneOf(this.enemyTeam); }
 
+  // 阵营区内的出生点，且必须落在平地(拒绝屋顶)。找不到就退回区中心地面。
   #spawnPoint(zone, i) {
-    const ang = i * 2.399;                 // 黄金角散布
-    const r = 3 + (i % 4) * 3;
-    const x = zone.x + Math.cos(ang) * r;
-    const z = zone.z + Math.sin(ang) * r;
-    return new THREE.Vector3(x, this.#groundY(x, z), z);
+    const baseY = this.#groundY(zone.x, zone.z);
+    const roofLimit = baseY + 2.5;          // 高于区域地面 2.5m 视为屋顶/障碍
+    for (let k = 0; k < 8; k++) {
+      const ang = (i + k) * 2.399;          // 黄金角散布
+      const r = 2 + ((i + k) % 5) * 2.6;
+      const x = zone.x + Math.cos(ang) * r;
+      const z = zone.z + Math.sin(ang) * r;
+      const y = this.#groundY(x, z);
+      if (y <= roofLimit) return new THREE.Vector3(x, y, z);
+    }
+    return new THREE.Vector3(zone.x, baseY, zone.z);
   }
 
   #spawnInZone(bot, zone, i) {

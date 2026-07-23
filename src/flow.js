@@ -24,10 +24,17 @@ export class Flow {
     this.faction = 'blue';
     this.mode = 'tdm';
 
-    this._scanT = 0;
     this._matchT = 0;
-    this._scanFrom = { pos: new THREE.Vector3(30, 130, 210), look: new THREE.Vector3(0, 0, 0) };
-    this._scanTo = { pos: new THREE.Vector3(-20, 55, 90), look: new THREE.Vector3(0, 6, 0) };
+    this._introElapsed = 0;
+    this._introDur = 17;        // 与旁白时长匹配，读完再切界面
+    // 高空环绕四角的巡游航点(y 均高于建筑，避免穿模)。
+    this._tour = [
+      { pos: new THREE.Vector3(110, 70, 190), look: new THREE.Vector3(0, 0, 70) },
+      { pos: new THREE.Vector3(-110, 65, 180), look: new THREE.Vector3(0, 0, 60) },
+      { pos: new THREE.Vector3(-120, 60, -30), look: new THREE.Vector3(0, 6, 40) },
+      { pos: new THREE.Vector3(120, 62, -10), look: new THREE.Vector3(0, 6, 60) },
+      { pos: new THREE.Vector3(10, 90, 130), look: new THREE.Vector3(0, 0, 30) },
+    ];
 
     this.#inject();
     this.#bind();
@@ -36,7 +43,7 @@ export class Flow {
 
   // ---- 公开 ----
   update(dt) {
-    if (this.state === 'intro') this.#scan(dt);
+    if (this.state === 'intro') this.#tourStep(dt);
     else if (this.state === 'match') this.#tickMatch(dt);
   }
 
@@ -57,10 +64,10 @@ export class Flow {
   #beginIntro() {
     this.onGesture();          // 用户手势：解锁音频。
     this.state = 'intro';
-    this._scanT = 0;
+    this._introElapsed = 0;
     this.#show('intro');
     this.$('intro-text').textContent = '';
-    this.#type(NARRATION);
+    this.#type(NARRATION, this._introDur * 0.9);
     this.#speak(NARRATION);
   }
 
@@ -107,15 +114,21 @@ export class Flow {
 
   #reset() { this.state = 'title'; this.#show('title'); }
 
-  // 地图扫描运镜。
-  #scan(dt) {
-    this._scanT = Math.min(1, this._scanT + dt / 12);
-    const e = this._scanT < 0.5 ? 2 * this._scanT * this._scanT : 1 - Math.pow(-2 * this._scanT + 2, 2) / 2;
-    const pos = this._scanFrom.pos.clone().lerp(this._scanTo.pos, e);
-    const look = this._scanFrom.look.clone().lerp(this._scanTo.look, e);
+  // 高空四角巡游：相机沿航点环绕整张地图，旁白在画面上载入。读完(到时长)才切界面。
+  #tourStep(dt) {
+    this._introElapsed += dt;
+    const wp = this._tour;
+    const segDur = this._introDur / wp.length;
+    const f = (this._introElapsed % this._introDur) / segDur;   // 循环巡游
+    const i = Math.floor(f) % wp.length;
+    const j = (i + 1) % wp.length;
+    const t = f - Math.floor(f);
+    const e = t * t * (3 - 2 * t);                              // smoothstep
+    const pos = wp[i].pos.clone().lerp(wp[j].pos, e);
+    const look = wp[i].look.clone().lerp(wp[j].look, e);
     this.camera.position.copy(pos);
     this.camera.lookAt(look);
-    if (this._scanT >= 1) this.#toFaction();
+    if (this._introElapsed >= this._introDur) this.#toFaction();
   }
 
   // ---- 语音 ----
@@ -131,15 +144,16 @@ export class Flow {
   }
   #stopSpeak() { try { window.speechSynthesis?.cancel(); } catch { /* noop */ } }
 
-  // 逐字显示旁白。
-  #type(text) {
+  // 逐字显示旁白，节奏铺满给定时长。
+  #type(text, seconds = 14) {
     const el = this.$('intro-text');
     let i = 0;
     clearInterval(this._typer);
+    const step = Math.max(45, (seconds * 1000) / text.length);
     this._typer = setInterval(() => {
       el.textContent = text.slice(0, ++i);
       if (i >= text.length) clearInterval(this._typer);
-    }, 90);
+    }, step);
   }
 
   // ---- DOM ----
@@ -170,7 +184,7 @@ export class Flow {
         <div class="hint">国民党(蓝) vs 共产党(红) · 8v8 · 先到 50 杀获胜</div>
       </div>
 
-      <div id="screen-intro" class="screen dark">
+      <div id="screen-intro" class="screen intro">
         <div id="intro-text"></div>
         <button class="fbtn ghost" id="intro-skip">跳过 ▶</button>
       </div>
@@ -221,6 +235,11 @@ export class Flow {
       }
       .screen.active { display: flex; }
       .screen.dark { background: rgba(3,5,8,.94); }
+      /* 开场：透明，让实时地图扫描透出来；旁白坐在底部渐变遮罩上。 */
+      .screen.intro {
+        background: linear-gradient(to bottom, rgba(0,0,0,.35) 0%, transparent 22%, transparent 55%, rgba(0,0,0,.78) 100%);
+        backdrop-filter: none; justify-content: flex-end; padding-bottom: 11%;
+      }
       .brand { font-size: 52px; font-weight: 800; letter-spacing: .16em; text-shadow: 0 4px 24px rgba(0,0,0,.7); }
       .tagline { font-size: 15px; color: #9fb0c2; letter-spacing: .14em; }
       .hint { font-size: 13px; color: #6f7d8c; letter-spacing: .08em; margin-top: 6px; }

@@ -250,6 +250,11 @@ export class Player {
     this.camera.rotation.set(this.pitch, this.yaw, roll, 'YXZ');
   }
 
+  /** 立即把相机对齐到玩家视角(出生时用，避免视角还停在开场俯瞰镜头上)。 */
+  snapCamera() {
+    this.#applyCamera();
+  }
+
   /** True on the frame a footfall lands, for the audio layer. */
   get bobPhaseValue() {
     return this.bobPhase;

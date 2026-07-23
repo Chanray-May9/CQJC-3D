@@ -54,6 +54,8 @@ export class BotController {
     this._hasLOS = false;
     this._mayShoot = true;
     this._lastShotAt = -99;
+    this._avoidAngle = 0;
+    this._avoidTick = Math.floor(Math.random() * 6);
 
     this._enemyPos = new THREE.Vector3();
     this._enemyDist = 999;
@@ -84,6 +86,7 @@ export class BotController {
   // 阶段一：决策 + 设定转向目标（在 entityManager.update 之前）。
   steer(dt, ctx) {
     this._collider = ctx.collider;
+    this._doAvoid = (++this._avoidTick % 6) === 0;   // 每6帧才重算绕行角，省射线
     this._prev.copy(this.vehicle.position);
     const dead = !this.c.alive;
     this.arrive.active = false; this.wander.active = false; this.separation.active = !dead;
@@ -121,7 +124,8 @@ export class BotController {
     }
   }
 
-  // 设定转向目标，并做 feeler 避障：若前方有墙，把目标偏向更开阔的一侧，绕开建筑。
+  // 设定转向目标 + feeler 避障。为省性能，feeler 每几帧才重算一次绕行角(_avoidAngle)，
+  // 帧间复用该角度偏转当前朝向，既能绕墙又不至于每帧狂发射线。
   #setTarget(v) {
     const col = this._collider;
     const dx = v.x - this.pos.x, dz = v.z - this.pos.z;
@@ -129,16 +133,24 @@ export class BotController {
     let ux = dx / len, uz = dz / len;
     const look = Math.min(9, len);
 
-    if (col && this.#castDist(col, ux, uz, look) < look - 0.5) {
-      // 前方受阻：向左右各探 45°/80°，选更开阔方向。
-      let best = null, bestOpen = -1;
-      for (const a of [0.8, -0.8, 1.5, -1.5]) {
-        const c = Math.cos(a), s = Math.sin(a);
-        const rx = ux * c - uz * s, rz = ux * s + uz * c;
-        const d = this.#castDist(col, rx, rz, look);
-        if (d > bestOpen) { bestOpen = d; best = [rx, rz]; }
+    if (this._doAvoid && col) {
+      if (this.#castDist(col, ux, uz, look) < look - 0.5) {
+        // 前方受阻：探左右几个角度，选更开阔方向，记下相对偏转角。
+        let bestA = 0, bestOpen = -1;
+        for (const a of [0.7, -0.7, 1.4, -1.4]) {
+          const c = Math.cos(a), s = Math.sin(a);
+          const d = this.#castDist(col, ux * c - uz * s, ux * s + uz * c, look);
+          if (d > bestOpen) { bestOpen = d; bestA = a; }
+        }
+        this._avoidAngle = bestA;
+      } else {
+        this._avoidAngle = 0;
       }
-      if (best) { ux = best[0]; uz = best[1]; }
+    }
+    if (this._avoidAngle) {
+      const c = Math.cos(this._avoidAngle), s = Math.sin(this._avoidAngle);
+      const rx = ux * c - uz * s, rz = ux * s + uz * c;
+      ux = rx; uz = rz;
     }
     this.arrive.target.set(this.pos.x + ux * look, this.groundY, this.pos.z + uz * look);
   }
@@ -209,8 +221,9 @@ export class BotController {
     return !hit || hit.distance >= d - 0.8;
   }
 
+  // 从脚上方一点向下取地面，只找脚下的地板——忽略头顶的屋顶(架空/骑楼建筑下也不会被拔到屋顶)。
   #groundAt(collider, x, z) {
-    this._ray.origin.set(x, this.groundY + 60, z);
+    this._ray.origin.set(x, this.groundY + 2.2, z);
     this._ray.direction.set(0, -1, 0);
     const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
     return hit ? hit.point.y : this.groundY;
