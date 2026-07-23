@@ -33,14 +33,15 @@ const campus = new Campus(scene);
 
 // 本地死亡竞赛。敌人在玩家落地后 deploy。
 const arena = new Arena(scene, {
-  onKill: ({ headshot, score }) => {
+  onKill: ({ headshot }) => {
     hud.killFeed(headshot ? '你 ⟶ 爆头击杀 敌军' : '你 ⟶ 击杀 敌军', headshot);
     const snap = arena.snapshot();
-    if (snap.winner) {
-      hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
-    }
+    if (snap.winner) hud.banner(snap.winner === 'blue' ? '国军(蓝)获胜' : '共军(红)获胜', snap.winner);
   },
   onHit: (headshot) => hud.hitMarker(headshot),
+  onPlayerHit: () => hud.damageFlash(),
+  onPlayerDied: () => hud.showDeath(),
+  onPlayerRespawn: () => hud.clearDeath(),
 });
 let deployed = false;
 
@@ -52,6 +53,7 @@ viewModel.setWeapon(arena.weapon.weapon.id);
 async function boot() {
   try {
     const info = await campus.load('assets/campus.glb', manager, daylight.environment);
+    arena.setCollider(campus.collider);
 
     // Drop the player onto the plaza rather than the model origin, which sits
     // underground on this model.
@@ -181,9 +183,10 @@ renderer.setAnimationLoop(() => {
     }
 
     if (deployed) {
-      arena.update(dt);
+      const playerMoving = player.speed > 0.6;
+      arena.update(dt, player, camera, playerMoving);
       arena.resolvePlayerCollision(player);
-      if (mouseFiring || touch.firing) {
+      if ((mouseFiring || touch.firing) && arena.player.alive) {
         const fired = arena.fire(camera);
         if (fired) {
           footsteps.playShot(arena.weapon.weapon.id);
