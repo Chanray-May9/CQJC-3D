@@ -167,7 +167,8 @@ export class BotController {
     }
     if (this.weapon.ammo === 0 && !this.weapon.reloading) this.weapon.reload(ctx.clock);
 
-    this.avatar.update(dt);
+    const v = this.vehicle.velocity;
+    this.avatar.update(dt, Math.hypot(v.x, v.z));
   }
 
   #lineOfSight(collider) {
