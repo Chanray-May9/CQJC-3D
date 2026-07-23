@@ -10,7 +10,7 @@ import { writeFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 
 const sdk = resolve('.toolchain/sdk');
-const jdk = resolve('.toolchain/jdk-17.0.19+10');
+const jdk = resolve('.toolchain/jdk-21.0.11+10');
 
 if (!existsSync(sdk)) {
   console.error(`Android SDK not found at ${sdk}`);
