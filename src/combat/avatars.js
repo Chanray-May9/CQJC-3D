@@ -60,6 +60,21 @@ export class Avatar {
     this.legR = limb(new THREE.BoxGeometry(0.18, 0.72, 0.2), gear, 0.13, 0.74, 0.72);
     this._walk = 0;
 
+    // 手持步枪(本地 +Z 为面朝方向)：机匣 + 枪管，端在胸前偏右。
+    const gunMat = new THREE.MeshStandardMaterial({ color: 0x20211d, roughness: 0.6, metalness: 0.4 });
+    const gun = new THREE.Group();
+    const receiver = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.1, 0.34), gunMat);
+    receiver.position.set(0, 0, 0.05);
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.32, 8), gunMat);
+    barrel.rotation.x = Math.PI / 2;
+    barrel.position.set(0, 0.01, 0.36);
+    gun.add(receiver, barrel);
+    gun.position.set(0.2, 1.02, 0.18);   // 端在右胸前
+    gun.castShadow = true;
+    gun.traverse((o) => { if (o.isMesh) o.castShadow = true; });
+    this.group.add(gun);
+    this._gun = gun;
+
     // hitscan 命中球（覆盖躯干与头，略放大更跟手）
     this.bodyRadius = 0.52;
     this.headRadius = 0.24;

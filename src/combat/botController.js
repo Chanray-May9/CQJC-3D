@@ -83,6 +83,7 @@ export class BotController {
 
   // 阶段一：决策 + 设定转向目标（在 entityManager.update 之前）。
   steer(dt, ctx) {
+    this._collider = ctx.collider;
     this._prev.copy(this.vehicle.position);
     const dead = !this.c.alive;
     this.arrive.active = false; this.wander.active = false; this.separation.active = !dead;
@@ -120,7 +121,34 @@ export class BotController {
     }
   }
 
-  #setTarget(v) { this.arrive.target.set(v.x, this.groundY, v.z); }
+  // 设定转向目标，并做 feeler 避障：若前方有墙，把目标偏向更开阔的一侧，绕开建筑。
+  #setTarget(v) {
+    const col = this._collider;
+    const dx = v.x - this.pos.x, dz = v.z - this.pos.z;
+    const len = Math.hypot(dx, dz) || 1;
+    let ux = dx / len, uz = dz / len;
+    const look = Math.min(9, len);
+
+    if (col && this.#castDist(col, ux, uz, look) < look - 0.5) {
+      // 前方受阻：向左右各探 45°/80°，选更开阔方向。
+      let best = null, bestOpen = -1;
+      for (const a of [0.8, -0.8, 1.5, -1.5]) {
+        const c = Math.cos(a), s = Math.sin(a);
+        const rx = ux * c - uz * s, rz = ux * s + uz * c;
+        const d = this.#castDist(col, rx, rz, look);
+        if (d > bestOpen) { bestOpen = d; best = [rx, rz]; }
+      }
+      if (best) { ux = best[0]; uz = best[1]; }
+    }
+    this.arrive.target.set(this.pos.x + ux * look, this.groundY, this.pos.z + uz * look);
+  }
+
+  #castDist(collider, dx, dz, max) {
+    this._ray.origin.set(this.pos.x, this.groundY + 1.0, this.pos.z);
+    this._ray.direction.set(dx, 0, dz);
+    const hit = collider.geometry.boundsTree.raycastFirst(this._ray, THREE.DoubleSide);
+    return hit ? hit.distance : max;
+  }
 
   // 阶段二：落地约束 + 同步 + 开火（在 entityManager.update 之后）。
   postStep(dt, ctx) {

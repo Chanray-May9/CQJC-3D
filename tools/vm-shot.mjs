@@ -14,7 +14,7 @@ await page.goto('http://127.0.0.1:5183/', { waitUntil: 'load', timeout: 120000 }
 await page.waitForFunction(() => !!window.__campus?.collider, null, { timeout: 120000 });
 await page.waitForTimeout(600);
 // 切到指定枪并等待 GLB 加载
-await page.evaluate((w) => window.__vm?.setWeapon(w), weapon);
+await page.evaluate((w) => { window.__startMatch('blue'); const c=window.__camera; c.position.set(0,2,80); c.rotation.set(0,Math.PI,0,'YXZ'); c.updateMatrixWorld(true); window.__vm.setWeapon(w); }, weapon);
 await page.waitForTimeout(1500);
 await page.screenshot({ path: `shots/vm-${weapon}.png` });
 await ctx.close();

@@ -80,10 +80,16 @@ export class Arena {
     return hit ? hit.point.y : 0;
   }
 
-  // 定两端阵营区(蓝 +Z / 红 -Z)，铺开双方。玩家由 main 用 playerSpawn() 放置。
+  // 定两端阵营区并随机分配给红蓝，铺开双方。玩家由 main 用 playerSpawn() 放置。
+  // 两端取开阔平地的对角两角，最大化间距；哪队在哪端随机(不因玩家固定)。
   deploy() {
-    this.blueZone.set(0, 0, 60);
-    this.redZone.set(0, 0, -55);
+    const endA = new THREE.Vector3(55, 0, 128);
+    const endB = new THREE.Vector3(-55, 0, 5);
+    if (Math.random() < 0.5) {
+      this.blueZone.copy(endA); this.redZone.copy(endB);
+    } else {
+      this.blueZone.copy(endB); this.redZone.copy(endA);
+    }
     let bi = 0, ri = 0;
     for (const bot of this.bots) {
       if (bot.c.team === 'blue') this.#spawnInZone(bot, this.blueZone, bi++);
