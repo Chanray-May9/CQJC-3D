@@ -21,7 +21,7 @@
 
 ## 下载安卓 APK
 
-**[时空战场 v0.2.0 · CQJC-3D-v0.2.0.apk](https://github.com/Chanray-May9/CQJC-3D/releases/download/v0.2.0/CQJC-3D-v0.2.0.apk)**（约 26 MB，8v8 团队竞技枪战）
+**[蒋介石大战希特勒 v0.3.0 · CQJC-3D-v0.3.0.apk](https://github.com/Chanray-May9/CQJC-3D/releases/download/v0.3.0/CQJC-3D-v0.3.0.apk)**（约 26 MB，8v8 团队竞技枪战）
 
 手机浏览器打开直链即可下载，在设置里允许「安装未知来源应用」后点击安装。全部 [Release](https://github.com/Chanray-May9/CQJC-3D/releases) 见发布页。
 
