@@ -73,6 +73,59 @@ export class Footsteps {
   }
 
   /**
+   * 合成枪声：一段噪声爆裂(枪管气爆) + 一个低频振荡"打击感"，快速衰减。
+   * 按枪种调音色——狙击更沉更响，冲锋枪更脆更短。零素材。
+   */
+  playShot(weaponId = 'rifle') {
+    if (!this.ctx || !this.enabled) return;
+    const ctx = this.ctx;
+    const now = ctx.currentTime;
+
+    const tone = {
+      pistol:  { peak: 0.7, decay: 0.12, freq: 1800, punch: 150 },
+      rifle:   { peak: 0.85, decay: 0.14, freq: 1500, punch: 120 },
+      smg:     { peak: 0.6, decay: 0.09, freq: 2200, punch: 160 },
+      sniper:  { peak: 1.0, decay: 0.28, freq: 900,  punch: 80 },
+      shotgun: { peak: 1.0, decay: 0.22, freq: 1100, punch: 90 },
+    }[weaponId] ?? { peak: 0.85, decay: 0.14, freq: 1500, punch: 120 };
+
+    // 噪声爆裂
+    const src = ctx.createBufferSource();
+    src.buffer = this.noise;
+    src.loop = true;
+    src.playbackRate.value = 0.9 + Math.random() * 0.3;
+
+    const hp = ctx.createBiquadFilter();
+    hp.type = 'highpass';
+    hp.frequency.value = tone.freq * 0.35;
+
+    const bp = ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.value = tone.freq * (0.9 + Math.random() * 0.2);
+    bp.Q.value = 0.6;
+
+    const env = ctx.createGain();
+    env.gain.setValueAtTime(0.0001, now);
+    env.gain.exponentialRampToValueAtTime(tone.peak, now + 0.004);
+    env.gain.exponentialRampToValueAtTime(0.0001, now + tone.decay);
+    src.connect(hp).connect(bp).connect(env).connect(this.master);
+    src.start(now);
+    src.stop(now + tone.decay + 0.03);
+
+    // 低频打击感
+    const osc = ctx.createOscillator();
+    osc.type = 'sine';
+    osc.frequency.setValueAtTime(tone.punch, now);
+    osc.frequency.exponentialRampToValueAtTime(tone.punch * 0.5, now + 0.08);
+    const oenv = ctx.createGain();
+    oenv.gain.setValueAtTime(tone.peak * 0.8, now);
+    oenv.gain.exponentialRampToValueAtTime(0.0001, now + 0.1);
+    osc.connect(oenv).connect(this.master);
+    osc.start(now);
+    osc.stop(now + 0.12);
+  }
+
+  /**
    * Drive from the player's bob phase so audio and head motion stay locked --
    * a step fires exactly when the camera reaches the bottom of its arc.
    */

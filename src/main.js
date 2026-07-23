@@ -6,6 +6,7 @@ import { Footsteps } from './audio.js';
 import { Hud } from './hud.js';
 import { TouchControls, isTouchDevice } from './touch.js';
 import { Arena } from './combat/arena.js';
+import { ViewModel } from './combat/viewmodel.js';
 
 const canvas = document.getElementById('view');
 const hud = new Hud();
@@ -42,6 +43,11 @@ const arena = new Arena(scene, {
   onHit: (headshot) => hud.hitMarker(headshot),
 });
 let deployed = false;
+
+// 相机需在场景图里，其子物体(枪模)才会渲染。
+scene.add(camera);
+const viewModel = new ViewModel(camera);
+viewModel.setWeapon(arena.weapon.weapon.id);
 
 async function boot() {
   try {
@@ -94,11 +100,22 @@ document.addEventListener('pointerlockchange', () => {
   else hud.exitPlay();
 });
 
-// 开火输入。桌面：按住鼠标左键连发（射速由武器门控）；换弹 R。
+// 开火输入。桌面：按住鼠标左键连发（射速由武器门控）；右键开镜；换弹 R。
 let mouseFiring = false;
-window.addEventListener('mousedown', (e) => { if (e.button === 0 && playing()) mouseFiring = true; });
-window.addEventListener('mouseup', (e) => { if (e.button === 0) mouseFiring = false; });
-window.addEventListener('blur', () => { mouseFiring = false; });
+let aiming = false;
+window.addEventListener('mousedown', (e) => {
+  if (!playing()) return;
+  if (e.button === 0) mouseFiring = true;
+  if (e.button === 2) aiming = true;
+});
+window.addEventListener('mouseup', (e) => {
+  if (e.button === 0) mouseFiring = false;
+  if (e.button === 2) aiming = false;
+});
+window.addEventListener('contextmenu', (e) => e.preventDefault());
+window.addEventListener('blur', () => { mouseFiring = false; aiming = false; });
+
+const HIP_FOV = 72;
 
 window.addEventListener('keydown', (e) => {
   if (e.code === 'KeyM') footsteps.toggle();
@@ -164,10 +181,26 @@ renderer.setAnimationLoop(() => {
 
     if (deployed) {
       arena.update(dt);
-      if (mouseFiring || touch.firing) arena.fire(camera);
+      if (mouseFiring || touch.firing) {
+        const fired = arena.fire(camera);
+        if (fired) {
+          footsteps.playShot(arena.weapon.weapon.id);
+          viewModel.kick();
+        }
+      }
       hud.setCombat(arena.snapshot());
     }
   }
+
+  // 开镜：拉近 FOV，枪模移到中心。
+  const wantAiming = aiming && playing();
+  viewModel.setAiming(wantAiming);
+  const targetFov = wantAiming ? HIP_FOV * 0.62 : HIP_FOV;
+  if (Math.abs(camera.fov - targetFov) > 0.05) {
+    camera.fov += (targetFov - camera.fov) * Math.min(1, dt * 12);
+    camera.updateProjectionMatrix();
+  }
+  viewModel.update(dt);
 
   daylight.update(player.position);
   hud.tick(player.sprinting);

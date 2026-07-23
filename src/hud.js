@@ -18,6 +18,8 @@ export class Hud {
       scoreBlue: document.getElementById('score-blue'),
       scoreRed: document.getElementById('score-red'),
       scoreTarget: document.getElementById('score-target'),
+      barBlue: document.getElementById('bar-blue'),
+      barRed: document.getElementById('bar-red'),
       healthBar: document.getElementById('health-bar'),
       healthNum: document.getElementById('health-num'),
       ammoCount: document.getElementById('ammo-count'),
@@ -74,6 +76,8 @@ export class Hud {
     this.el.scoreBlue.textContent = String(s.blue);
     this.el.scoreRed.textContent = String(s.red);
     this.el.scoreTarget.textContent = String(s.target);
+    if (this.el.barBlue) this.el.barBlue.style.width = `${Math.min(100, (s.blue / s.target) * 100)}%`;
+    if (this.el.barRed) this.el.barRed.style.width = `${Math.min(100, (s.red / s.target) * 100)}%`;
   }
 
   killFeed(text, headshot = false) {
