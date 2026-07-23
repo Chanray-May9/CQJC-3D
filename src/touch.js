@@ -81,12 +81,12 @@ export class TouchControls {
     this.fireBtn.addEventListener('pointercancel', fireOff);
     this.fireBtn.addEventListener('pointerleave', fireOff);
 
-    // 瞄准：按住开镜。
-    this.aimBtn.addEventListener('pointerdown', (e) => { stop(e); this.aiming = true; this.aimBtn.classList.add('on'); });
-    const aimOff = (e) => { stop(e); this.aiming = false; this.aimBtn.classList.remove('on'); };
-    this.aimBtn.addEventListener('pointerup', aimOff);
-    this.aimBtn.addEventListener('pointercancel', aimOff);
-    this.aimBtn.addEventListener('pointerleave', aimOff);
+    // 瞄准：点击切换开镜/关闭(非长按)。
+    this.aimBtn.addEventListener('pointerdown', (e) => {
+      stop(e);
+      this.aiming = !this.aiming;
+      this.aimBtn.classList.toggle('on', this.aiming);
+    });
 
     const el = this.container;
     el.addEventListener('pointerdown', (e) => this.#down(e), { passive: false });
