@@ -9,6 +9,14 @@ import * as THREE from 'three';
  */
 
 const TEAM_COLOR = { blue: 0x2f6fb0, red: 0xc0392b };
+
+// 阵营头像贴图：蓝队=蒋介石，红队=希特勒。全局共享，只加载一次。
+const _texLoader = new THREE.TextureLoader();
+const FACE_TEX = {
+  blue: _texLoader.load('assets/faces/chiang.png'),
+  red: _texLoader.load('assets/faces/hitler.png'),
+};
+for (const t of Object.values(FACE_TEX)) t.colorSpace = THREE.SRGBColorSpace;
 const SKIN = 0xd9a67a;
 const GEAR = 0x2a2f26;      // 装备/裤装深色
 
@@ -38,9 +46,15 @@ export class Avatar {
 
     // 躯干（阵营色军装）
     add(new THREE.BoxGeometry(0.5, 0.62, 0.28), cloth, 0, 1.05, 0);
-    // 头 + 钢盔
+    // 头（普通头留作背面/底衬）
     add(new THREE.SphereGeometry(0.16, 16, 12), skin, 0, HEAD_Y, 0);
-    add(new THREE.SphereGeometry(0.185, 16, 8, 0, Math.PI * 2, 0, Math.PI / 2), gear, 0, HEAD_Y + 0.03, 0);
+    // 大头照广告牌：始终朝向相机，约 2 倍头部半径。蓝=蒋介石 红=希特勒。
+    const faceMat = new THREE.SpriteMaterial({ map: FACE_TEX[team] ?? FACE_TEX.blue, transparent: true, depthWrite: false });
+    const face = new THREE.Sprite(faceMat);
+    face.scale.set(0.64, 0.64, 1);          // 头部半径 0.16 → 约 2 倍
+    face.position.set(0, HEAD_Y + 0.05, 0);
+    this.group.add(face);
+    this._face = face;
     // 铰接肢体：支点在髋/肩，肢体盒向下偏移，便于绕支点摆动做走路动画。
     const limb = (geo, mat, px, pivotY, len) => {
       const pivot = new THREE.Group();
@@ -106,6 +120,7 @@ export class Avatar {
       o.material.transparent = dead;
       o.material.opacity = dead ? 0.55 : 1;
     });
+    if (this._face) this._face.material.opacity = dead ? 0.55 : 1;
     if (!dead) {
       // 复活：站直归位。
       this._fall = 0;

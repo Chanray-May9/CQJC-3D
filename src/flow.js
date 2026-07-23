@@ -9,9 +9,9 @@ import * as THREE from 'three';
  */
 
 const NARRATION =
-  '一九四七年，内战正酣。国共两军在战场上殊死相搏。' +
-  '就在此时，一道诡异的时空裂隙骤然撕开，两支军队连人带枪，被卷入了这座陌生的校园。' +
-  '硝烟未散，战斗，在此地继续。';
+  '历史的两端，本无交集。然而一道诡异的时空裂隙骤然撕开——' +
+  '委员长蒋介石，与元首希特勒，连同麾下千军万马，一同被卷入了这座陌生的现代校园。' +
+  '两位枭雄，两支铁军，宿命般地在此狭路相逢。号角已鸣，且看蒋介石大战希特勒，谁主沉浮！';
 
 const MATCH_SECONDS = 20;   // 预计匹配时间
 
@@ -47,13 +47,25 @@ export class Flow {
     else if (this.state === 'match') this.#tickMatch(dt);
   }
 
-  // winnerTeam: 'blue'(国军) | 'red'(共军)；playerTeam: 玩家所在阵营
+  // winnerTeam/playerTeam: 'blue'(蒋介石) | 'red'(希特勒)
   showResult(winnerTeam, playerTeam, blue, red) {
     this.state = 'result';
+    const FACE = { blue: 'assets/faces/chiang.png', red: 'assets/faces/hitler.png' };
+    const NAME = { blue: '蒋介石', red: '希特勒' };
+    const enemyTeam = playerTeam === 'blue' ? 'red' : 'blue';
+    const loserTeam = winnerTeam === 'blue' ? 'red' : 'blue';
     const won = winnerTeam === playerTeam;
-    this.$('result-title').textContent = winnerTeam === 'blue' ? '国军胜利' : '共军胜利';
+
+    // 左=己方阵营，右=敌方阵营；胜者放大、败者缩小一半。
+    const left = this.$('portrait-left'), right = this.$('portrait-right');
+    left.src = FACE[playerTeam];  left.alt = NAME[playerTeam];
+    right.src = FACE[enemyTeam];  right.alt = NAME[enemyTeam];
+    left.className = 'rportrait ' + (winnerTeam === playerTeam ? 'win' : 'lose');
+    right.className = 'rportrait ' + (winnerTeam === enemyTeam ? 'win' : 'lose');
+
+    this.$('result-title').textContent = `${NAME[winnerTeam]}战胜了${NAME[loserTeam]}`;
     this.$('result-title').style.color = winnerTeam === 'blue' ? '#6ab0f5' : '#f5776a';
-    this.$('result-score').textContent = `国军 ${blue} · 共军 ${red} — 你所在阵营${won ? '获胜！' : '落败'}`;
+    this.$('result-score').textContent = `蒋介石 ${blue} · 希特勒 ${red} — 你${won ? '获胜！' : '落败'}`;
     this.$('result-score').style.color = won ? '#cdd7e2' : '#9fb0c2';
     this.#show('result');
   }
@@ -73,7 +85,19 @@ export class Flow {
     this.#speak(NARRATION);
   }
 
-  #toFaction() { this.state = 'faction'; this.#show('faction'); }
+  #toFaction() { this.state = 'faction'; this.$('faction-prompt').textContent = ''; this.#show('faction'); }
+
+  // 选定阵营：先提示"与…们并肩作战"，再进入开场演出。
+  #chooseFaction(team) {
+    if (this.state !== 'faction') return;
+    this.faction = team;
+    const who = team === 'blue' ? '蒋介石' : '希特勒';
+    const p = this.$('faction-prompt');
+    p.textContent = `你将与${who}们一起并肩作战`;
+    p.style.color = team === 'blue' ? '#6ab0f5' : '#f5776a';
+    this.state = 'faction-chosen';
+    setTimeout(() => { if (this.state === 'faction-chosen') this.#beginIntro(); }, 1900);
+  }
   #toMode() { this.state = 'mode'; this.#show('mode'); }
   #toMatch() {
     this.state = 'match';
@@ -166,7 +190,7 @@ export class Flow {
       b.addEventListener('click', () => { this.mode = b.dataset.mode; this.#toMatch(); }));
     this.$('match-skip').addEventListener('click', () => this.#finishMatch());
     this.root.querySelectorAll('#screen-faction [data-team]').forEach((b) =>
-      b.addEventListener('click', () => { this.faction = b.dataset.team; this.#beginIntro(); }));
+      b.addEventListener('click', () => this.#chooseFaction(b.dataset.team)));
     this.$('intro-skip').addEventListener('click', () => { clearInterval(this._typer); this.#stopSpeak(); this.#startMatch(); });
     this.$('result-again').addEventListener('click', () => location.reload());
   }
@@ -176,10 +200,10 @@ export class Flow {
     root.id = 'flow-root';
     root.innerHTML = `
       <div id="screen-title" class="screen active">
-        <div class="brand">时空战场</div>
-        <div class="tagline">重庆建筑工程职业学院 · 团队竞技枪战</div>
+        <div class="brand">蒋介石大战希特勒</div>
+        <div class="tagline">时空战场 · 重庆建筑工程职业学院</div>
         <button class="fbtn primary" id="title-start">开始</button>
-        <div class="hint">国民党(蓝) vs 共产党(红) · 8v8 · 先到 50 杀获胜</div>
+        <div class="hint">蒋介石(蓝) vs 希特勒(红) · 8v8 · 先到 50 杀获胜</div>
       </div>
 
       <div id="screen-intro" class="screen intro">
@@ -190,9 +214,16 @@ export class Flow {
       <div id="screen-faction" class="screen">
         <div class="head">选择你的阵营</div>
         <div class="cards">
-          <button class="card blue" data-team="blue"><b>国民党 · 国军</b><em>蓝方</em></button>
-          <button class="card red" data-team="red"><b>共产党 · 共军</b><em>红方</em></button>
+          <button class="card blue" data-team="blue">
+            <img class="portrait" src="assets/faces/chiang.png" alt="蒋介石">
+            <b>蒋介石阵营</b><em>蓝方</em>
+          </button>
+          <button class="card red" data-team="red">
+            <img class="portrait" src="assets/faces/hitler.png" alt="希特勒">
+            <b>希特勒阵营</b><em>红方</em>
+          </button>
         </div>
+        <div id="faction-prompt"></div>
       </div>
 
       <div id="screen-mode" class="screen">
@@ -214,6 +245,11 @@ export class Flow {
 
       <div id="screen-result" class="screen">
         <div class="brand" id="result-title">胜利</div>
+        <div id="result-portraits">
+          <img id="portrait-left" class="rportrait" alt="">
+          <span id="result-vs">VS</span>
+          <img id="portrait-right" class="rportrait" alt="">
+        </div>
         <div id="result-score" class="tagline"></div>
         <button class="fbtn primary" id="result-again">再来一局</button>
       </div>
@@ -277,6 +313,17 @@ export class Flow {
       .matchbar { width: 340px; height: 8px; border-radius: 5px; background: rgba(255,255,255,.12); overflow: hidden; }
       #match-fill { height: 100%; width: 0%; background: linear-gradient(90deg,#2f6fb0,#7cc0ff); transition: width .3s linear; }
       #match-status { font-size: 15px; color: #cdd7e2; letter-spacing: .08em; }
+      /* 阵营卡头像 */
+      .card .portrait { width: 92px; height: 92px; object-fit: cover; border-radius: 6px; margin-bottom: 6px; filter: grayscale(.1); }
+      .card.blue .portrait { box-shadow: 0 0 0 2px rgba(90,160,230,.7); }
+      .card.red .portrait { box-shadow: 0 0 0 2px rgba(229,106,90,.7); }
+      #faction-prompt { min-height: 26px; margin-top: 14px; font-size: 18px; font-weight: 600; letter-spacing: .1em; color: #e8eef5; text-shadow: 0 2px 10px rgba(0,0,0,.8); }
+      /* 结算双头像 */
+      #result-portraits { display: flex; align-items: center; justify-content: center; gap: 34px; margin: 6px 0 4px; }
+      #result-vs { font-size: 20px; font-weight: 700; color: #8b98a8; letter-spacing: .1em; }
+      .rportrait { width: 150px; height: 150px; object-fit: cover; border-radius: 8px; transition: all .5s cubic-bezier(.2,.9,.3,1.2); }
+      .rportrait.win { width: 200px; height: 200px; box-shadow: 0 0 26px rgba(255,220,120,.55), 0 0 0 3px rgba(255,220,120,.9); }
+      .rportrait.lose { width: 100px; height: 100px; filter: grayscale(.7) brightness(.7); }
     `;
     document.head.appendChild(style);
   }
